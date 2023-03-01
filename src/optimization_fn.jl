@@ -88,6 +88,13 @@ function calc_optimization_val(darp::DARP, raw_routes::Route)
     end
     ride_times = [max(ride_time(k, i), 0) for k in keys(routes) for i in route_requests(k)]
     t = sum(ride_times)
+
+    # This is the cost of the routes if we just travel from pickup to dropoff
+    # for each request, this is unavoidable....
+    # so remove this from the total cost
+    # TODO: this is same for all iterations, so keep it out of iterations
+    non_avoidable_cost = [travel_time(darp, i, -i) for k in keys(routes) for i in route_requests(k)]
+    c = c - sum(non_avoidable_cost)
     # println("c = $c | q = $q | d = $d | w = $w")
     return (c + q + d + w + t) / 1.0
 end

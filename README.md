@@ -33,3 +33,8 @@ julia src/main.jl
 ## Breakdown of log line
 
 ![log-line-breakdown](images/log-line-breakdown.png)
+
+
+## TODO
+1. Diversification
+2. Intensification
