@@ -3,6 +3,7 @@ import StatsBase
 import Random
 include("optimization_fn.jl")
 include("darp.jl")
+include("utils.jl")
 
 
 struct MoveParams
@@ -20,7 +21,7 @@ end
 const TabuMemory = Dict{MoveParams, Int64}
 
 function local_search(darp::DARP, iterations::Int64,
-                        N_SIZE::Int64, rawInitRoute::Route)
+                        N_SIZE::Int64, rawInitRoute::Route, stats::DARPStat)
     tabuMem = TabuMemory()
     bestRoute::Route = deepcopy(rawInitRoute)
     bestVal::Float64 = calc_optimization_val(darp, bestRoute)
@@ -28,16 +29,23 @@ function local_search(darp::DARP, iterations::Int64,
     curRoute = bestRoute
     curVal = bestVal
     for curIteration in 1:iterations
+        start_ts = now()
         newRoute::Route, newVal::Float64 = do_local_search!(curIteration, tabuMem, darp, curRoute, N_SIZE)
+        end_ts = now()
+        # push!(stats.time_localSearchMoves, ts_diff(start_ts, end_ts))
         if newVal <= bestVal
             bestRoute = deepcopy(newRoute)
             bestVal = newVal
         end
         improvement = percentage_improved(initVal, bestVal)
+        # push!(stats.improvements, improvement)
         println("$(curIteration)/$(iterations) | voilation=$(newVal) | improved=$(100 - improvement)%")
         curRoute = newRoute
         curVal = newVal
     end
+
+    best_improvement = percentage_improved(initVal, bestVal)
+    stats.best_improvement = 100.0 - best_improvement
     return bestRoute, bestVal
 end
 

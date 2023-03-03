@@ -1,4 +1,5 @@
 # TODO -> make these config driven?
+include("utils.jl")
 include("parseRequests.jl")
 
 const DEFAULT_SERVICE_TIME = 2
@@ -22,8 +23,9 @@ struct DARP
     q::Dict{Int64,Int64}
     tw::Dict{Int64,Tuple{Float64,Float64}}
     w::Dict{Int64,Float64}
+    stats::DARPStat
 
-    function DARP(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64)
+    function DARP(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64, stats::DARPStat)
         start_depot::Int64 = 0
         end_depot::Int64 = 2 * nR + 1
 
@@ -73,7 +75,7 @@ struct DARP
         end
         return new(nR, sdInSeconds, aosInSqMiles,
             nV, T_route, requests, start_depot, end_depot,
-            Q, coords, d, q, tw, w)
+            Q, coords, d, q, tw, w, stats)
     end
 end
 
