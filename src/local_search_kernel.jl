@@ -73,7 +73,8 @@ function generate_random_moves(iterationNum::Int64, tabuMem::TabuMemory,
         p1, p2 = StatsBase.sample(rng, 1:len_k2, Weights(fill(1, len_k2)),
             2, replace=false, ordered=true)
         param = MoveParams(i, k1, k2, p1, p2)
-        if !(param in moves) && (get(tabuMem, param, -40) <= iterationNum + 40) # TODO: Remove this constant
+        if !(param in moves) && (get(tabuMem, param, -size) <= iterationNum + size) # TODO: Remove this constant
+            tabuMem[param] = iterationNum
             push!(moves, param)
         end
     end
