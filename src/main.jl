@@ -20,7 +20,7 @@ function run(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64)
     darp = DARP(nR, sd, aos, nV, Q, stats)
     N_SIZE = 0.75 * darp.nR
     N_SIZE = trunc(Int64, N_SIZE)
-    total_iterations = darp.nR * 3
+    total_iterations = darp.nR * 1
     stats.localSearchIterations = total_iterations
     stats.searchMoveSize = N_SIZE
 
