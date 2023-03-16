@@ -10,10 +10,6 @@ requests = [50, 350, 500, 650, 1000]
 area_of_service = [10]
 service_duration = [2]
 
-# requests = [50, 350, 500]
-# area_of_service = [10]
-# service_duration = [2, 4]
-
 function run_tests()
     s = ArgParseSettings()
     @add_arg_table s begin
