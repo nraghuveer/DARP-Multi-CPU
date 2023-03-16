@@ -10,7 +10,7 @@ Granular Tabu Search implementation of DARP for the single/multi CPU in Julia
 use Pkg
 Pkg.add("StatsBase")
 Pkg.add("Random")
-Pkg.add("DateTime")
+Pkg.add("CSV")
 Pkg.add("ArgParse")
 ```
 
