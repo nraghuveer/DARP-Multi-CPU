@@ -3,31 +3,27 @@ Granular Tabu Search implementation of DARP for the single/multi CPU in Julia
 
 ## Steps to Run
 1. Install julia
-2. Enter into julia shell by running command `julia`
-3. Run below code
 
 ```
-use Pkg
-Pkg.add("StatsBase")
-Pkg.add("Random")
-Pkg.add("CSV")
-Pkg.add("ArgParse")
+wget https://julialang-s3.julialang.org/bin/linux/x64/1.8/julia-1.8.1-linux-x86_64.tar.gz
+tar zxvf julia-1.8.1-linux-x86_64.tar.gz
+```
+Now add the julia to path (in bashrc or zshrc file)
+```
+PATH='$PATH:<julia-extract-dir>/bin'
 ```
 
-This is same as pip install, I still couldn't figure out how to generate env files
-for julia env shells and define deps...Might not actually need it since we use
-limited non-std packages
-
-4. Export env variable (configure it)
-
-`export JULIA_NUM_THREADS=4`
-
-This makes Julia runtime to consume only 4 CPU cores
-
-5. Run the program
+2. Run `julia julia_setup.jl`
+3. chmod +x run_tests_adv.sh
+4. Command to run tests
 
 ```
-julia src/main.jl
+./run_tests_adv.sh <output-filename> <thread configurations to run>
+```
+
+Example
+```
+./run_tests_adv.sh benchmark1 20 16 14 12 10 8 4 2 1
 ```
 
 ## Breakdown of log line
