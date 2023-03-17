@@ -4,10 +4,8 @@ import itertools
 import pandas as pd
 import matplotlib.pyplot as plt
 
-threads = [1,2,4,8]
+threads = [1,2,4,8, 16, 24, 30]
 requests = [50, 350, 500, 650, 100]
-area_of_service = [10]
-service_duration = [2, 4, 8, 12, 16, 24]
 
 
 def main():

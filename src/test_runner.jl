@@ -29,7 +29,7 @@ function run_tests()
         push!(all_stats, stats)
     end
 
-    CSV.write(args["statsfile"], all_stats)
+    CSV.write(args["statsfile"], all_stats, append=true)
 end
 
 run_tests()
