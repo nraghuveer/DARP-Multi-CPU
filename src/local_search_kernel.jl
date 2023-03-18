@@ -52,6 +52,7 @@ end
 function generate_random_moves(iterationNum::Int64, tabuMem::TabuMemory,
                                 nR::Int64, nV::Int64,
                                 size::Int64, routes::Route) Array{MoveParams}
+    TABU_SIZE = trunc(Int, 0.2 * nR)
     moves::Set{MoveParams} = Set([])
     vehicles = collect(nR+1:nR+nV)
     vehicleWeights = Weights(fill(1, nV))
@@ -73,7 +74,8 @@ function generate_random_moves(iterationNum::Int64, tabuMem::TabuMemory,
         p1, p2 = StatsBase.sample(rng, 1:len_k2, Weights(fill(1, len_k2)),
             2, replace=false, ordered=true)
         param = MoveParams(i, k1, k2, p1, p2)
-        if !(param in moves) && (get(tabuMem, param, -15) <= iterationNum + 15) # TODO: Remove this constant
+        # if it occurs below iterationNum - TABU_SIZE, them update, else generate
+        if !(param in moves) && (get(tabuMem, param, -TABU_SIZE) + TABU_SIZE <= iterationNum) # TODO: Remove this constant
             tabuMem[param] = iterationNum
             push!(moves, param)
         end
