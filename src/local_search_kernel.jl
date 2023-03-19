@@ -14,14 +14,15 @@ struct MoveParams
     p2::Int64
 end
 
-function percentage_improved(old::Float64, new::Float64) Float64
+function percentage_improved(old::Float64, new::Float64)
+    Float64
     return (new * 100) / old
 end
 
-const TabuMemory = Dict{MoveParams, Int64}
+const TabuMemory = Dict{MoveParams,Int64}
 
 function local_search(darp::DARP, iterations::Int64,
-                        N_SIZE::Int64, rawInitRoute::Route, stats::DARPStat)
+    N_SIZE::Int64, rawInitRoute::Route, stats::DARPStat)
     tabuMem = TabuMemory()
     bestRoute::Route = deepcopy(rawInitRoute)
     bestVal::Float64 = calc_optimization_val(darp, bestRoute)
@@ -50,34 +51,39 @@ function local_search(darp::DARP, iterations::Int64,
 end
 
 function generate_random_moves(iterationNum::Int64, tabuMem::TabuMemory,
-                                nR::Int64, nV::Int64,
-                                size::Int64, routes::Route) Array{MoveParams}
-    TABU_SIZE = trunc(Int, 0.2 * nR)
+    nR::Int64, nV::Int64,
+    size::Int64, routes::Route)
+    TABU_SIZE = trunc(Int64, nR * 0.5)
     moves::Set{MoveParams} = Set([])
     vehicles = collect(nR+1:nR+nV)
     vehicleWeights = Weights(fill(1, nV))
-    seed = 0
+    seedRng = MersenneTwister(iterationNum)
     while length(moves) < size
-        seed = seed + 1
-        rng = MersenneTwister(seed)
-        k1, k2 = StatsBase.sample(rng, vehicles, vehicleWeights, 2, replace=false)
+        # rng = MersenneTwister(seed)
+        k1, k2 = StatsBase.sample(seedRng, vehicles, vehicleWeights, 2, replace=false)
         if length(routes[k1]) == 0
             continue
         end
         # pick a request from k1
-        i = StatsBase.sample(rng, routes[k1], Weights(fill(1, length(routes[k1]))), 1)
+        i = StatsBase.sample(seedRng, routes[k1], Weights(fill(1, length(routes[k1]))), 1)
         i = abs(i[1])
         len_k2::Int64 = length(routes[k2])
         if len_k2 == 0
             continue
         end
-        p1, p2 = StatsBase.sample(rng, 1:len_k2, Weights(fill(1, len_k2)),
+        p1, p2 = StatsBase.sample(seedRng, 1:len_k2, Weights(fill(1, len_k2)),
             2, replace=false, ordered=true)
         param = MoveParams(i, k1, k2, p1, p2)
-        # if it occurs below iterationNum - TABU_SIZE, them update, else generate
-        if !(param in moves) && (get(tabuMem, param, -TABU_SIZE) + TABU_SIZE <= iterationNum) # TODO: Remove this constant
+        moveLastUsedIn = get(tabuMem, param, -TABU_SIZE)
+        if !(param in moves) && (moveLastUsedIn + TABU_SIZE <= iterationNum)
             tabuMem[param] = iterationNum
             push!(moves, param)
+        else
+            if (param in moves)
+                println("Current iteration miss ", param)
+            else
+                println("Tabu Miss", param)
+            end
         end
     end
     return collect(moves)
@@ -93,7 +99,7 @@ function apply_move(routes::Route, move::MoveParams)
 end
 
 function do_local_search!(iterationNum::Int64, tabuMem::TabuMemory,
-                            darp::DARP, routes::Route, N_SIZE::Int64)
+    darp::DARP, routes::Route, N_SIZE::Int64)
     moves = generate_random_moves(iterationNum, tabuMem, darp.nR, darp.nV, N_SIZE, routes)
     for move in moves
         tabuMem[move] = iterationNum
