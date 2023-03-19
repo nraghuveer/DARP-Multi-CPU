@@ -57,6 +57,8 @@ function generate_random_moves(iterationNum::Int64, tabuMem::TabuMemory,
     moves::Set{MoveParams} = Set([])
     vehicles = collect(nR+1:nR+nV)
     vehicleWeights = Weights(fill(1, nV))
+
+    tabuMissCount = 0
     seedRng = MersenneTwister(iterationNum)
     while length(moves) < size
         # rng = MersenneTwister(seed)
@@ -79,14 +81,10 @@ function generate_random_moves(iterationNum::Int64, tabuMem::TabuMemory,
             tabuMem[param] = iterationNum
             push!(moves, param)
         else
-            if (param in moves)
-                println("Current iteration miss ", param)
-            else
-                println("Tabu Miss", param)
-            end
+            tabuMissCount += 1
         end
     end
-    return collect(moves)
+    return collect(moves), tabuMissCount
 end
 
 function apply_move(routes::Route, move::MoveParams)
@@ -100,7 +98,8 @@ end
 
 function do_local_search!(iterationNum::Int64, tabuMem::TabuMemory,
     darp::DARP, routes::Route, N_SIZE::Int64)
-    moves = generate_random_moves(iterationNum, tabuMem, darp.nR, darp.nV, N_SIZE, routes)
+    moves, tabuMissCount = generate_random_moves(iterationNum, tabuMem, darp.nR, darp.nV, N_SIZE, routes)
+    println("TabuMissCount = ", tabuMissCount)
     for move in moves
         tabuMem[move] = iterationNum
     end
