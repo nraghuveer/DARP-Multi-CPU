@@ -5,6 +5,8 @@ include("optimization_fn.jl")
 include("darp.jl")
 include("utils.jl")
 
+using TimerOutputs
+
 
 struct MoveParams
     i::Int64
@@ -22,27 +24,31 @@ end
 const TabuMemory = Dict{MoveParams,Int64}
 
 function local_search(darp::DARP, iterations::Int64,
-    N_SIZE::Int64, rawInitRoute::Route, stats::DARPStat)
+    N_SIZE::Int64, rawInitRoute::Route, stats::DARPStat, to::TimerOutput)
+
     tabuMem = TabuMemory()
-    bestRoute::Route = deepcopy(rawInitRoute)
-    bestVal::Float64 = calc_optimization_val(darp, bestRoute)
+    bestRoute::Route = rawInitRoute
+    routes_opt::Route = Dict(k => [[darp.start_depot]; bestRoute[k]; [darp.end_depot]]
+                             for k in keys(bestRoute))
+    rvalues = Dict(k => route_values(routes_opt[k], darp) for k in keys(routes_opt))
+    bestVal::Float64 = calc_opt(-1, darp, rvalues, routes_opt, to)
     initVal::Float64 = bestVal
     curRoute = bestRoute
     curVal = bestVal
+
     for curIteration in 1:iterations
-        start_ts = now()
-        newRoute::Route, newVal::Float64 = do_local_search!(curIteration, tabuMem, darp, curRoute, N_SIZE)
-        end_ts = now()
-        # push!(stats.time_localSearchMoves, ts_diff(start_ts, end_ts))
-        if newVal <= bestVal
-            bestRoute = deepcopy(newRoute)
-            bestVal = newVal
+        @timeit to "search#$(curIteration)" begin
+            newRoute::Route, newVal::Float64 = do_local_search!(curIteration, tabuMem, darp, curRoute, N_SIZE, to)
+            if newVal <= bestVal
+                bestRoute = newRoute
+                bestVal = newVal
+            end
+            improvement = percentage_improved(initVal, bestVal)
+
+            println("$(curIteration)/$(iterations) | voilation=$(newVal) | improved=$(100 - improvement)%")
+            curRoute = newRoute
+            curVal = newVal
         end
-        improvement = percentage_improved(initVal, bestVal)
-        # push!(stats.improvements, improvement)
-        println("$(curIteration)/$(iterations) | voilation=$(newVal) | improved=$(100 - improvement)%")
-        curRoute = newRoute
-        curVal = newVal
     end
 
     best_improvement = percentage_improved(initVal, bestVal)
@@ -97,17 +103,41 @@ function apply_move(routes::Route, move::MoveParams)
 end
 
 function do_local_search!(iterationNum::Int64, tabuMem::TabuMemory,
-    darp::DARP, routes::Route, N_SIZE::Int64)
-    moves, tabuMissCount = generate_random_moves(iterationNum, tabuMem, darp.nR, darp.nV, N_SIZE, routes)
-    println("TabuMissCount = ", tabuMissCount)
+    darp::DARP, routes::Route, N_SIZE::Int64, to::TimerOutput)
+    # if iterationNum % 20 == 0
+    #     GC.gc(false)
+    # end
+    GC.gc(false)
+
+    @timeit to "prevRValues" prev_rvalues = Dict(
+        k => route_values([[darp.start_depot]; routes[k]; [darp.end_depot]], darp)
+        for k in keys(routes))
+
+    @timeit to "moveGen" moves, _ = generate_random_moves(iterationNum, tabuMem, darp.nR,
+        darp.nV, N_SIZE, routes)
+
     for move in moves
         tabuMem[move] = iterationNum
     end
+
     scores = fill(floatmin(Float64), N_SIZE)
-    Threads.@threads for tid in 1:N_SIZE
-        newRoutes = apply_move(routes, moves[tid])
-        scores[tid] = calc_optimization_val(darp, newRoutes)
+
+    @timeit to "calcOptVal" Threads.@threads for tid in 1:N_SIZE
+        to2 = TimerOutput()
+        move = moves[tid]
+        newRawRoutes::Route = apply_move(routes, move)
+        newRoutes::Route = Dict(k => [[darp.start_depot]; newRawRoutes[k]; [darp.end_depot]]
+                                for k in keys(newRawRoutes))
+        rvalues = deepcopy(prev_rvalues)
+        rvalues[move.k1] = route_values(newRoutes[move.k1], darp)
+        rvalues[move.k2] = route_values(newRoutes[move.k2], darp)
+        disable_timer!(to2)
+        scores[tid] = calc_opt(tid, darp, rvalues, newRoutes, to2)
+        merge!(to, to2, tree_point=["search#$(iterationNum)"])
+        enable_timer!(to2)
     end
+
+
     minScore, idx = findmin(scores)
     return apply_move(routes, moves[idx]), minScore
 end
