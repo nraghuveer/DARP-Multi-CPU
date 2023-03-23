@@ -7,40 +7,45 @@ using Base.Threads
 using Dates
 using ArgParse
 using CSV
+using TimerOutputs
+
 
 # TODO: Tighten bounds for each route
 
+const to = TimerOutput()
+
 function run(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64)
-    DARPStat
     println("====================================================================")
-    start_dt = now()
     println("Running on $(Threads.nthreads()) threads")
-    # darp = DARP(500, 2, 10, 5, 1)
     stats = DARPStat(nR, sd, aos, nV, Q)
     darp = DARP(nR, sd, aos, nV, Q, stats)
-    N_SIZE = 0.75 * darp.nR
-    N_SIZE = trunc(Int64, N_SIZE)
-    total_iterations = darp.nR * 1
+
+    start_dt = now()
+    N_SIZE = trunc(Int64, 0.9 * nR)
+    println("Using N_SIZE=$(N_SIZE)")
+    total_iterations = nR
     stats.localSearchIterations = total_iterations
     stats.searchMoveSize = N_SIZE
 
     routes = fill(Route(), N_SIZE)
     scores = fill(floatmin(Float64), N_SIZE)
+    !disable_timer!(to)
     Threads.@threads for i in 1:N_SIZE
-        cur::Route = generate(10, darp.requests, darp.nR, darp.nV)
-        scores[i] = calc_optimization_val(darp, cur)
+        cur::Route = generate(darp.nR, darp.nV)
+        curRoute::Route = Dict(k => [[darp.start_depot]; cur[k]; [darp.end_depot]]
+                               for k in keys(cur))
+        rvalues = Dict(k => route_values(curRoute[k], darp) for k in keys(curRoute))
+        scores[i] = calc_opt(i, darp, rvalues, curRoute, to)
         routes[i] = cur
     end
+    enable_timer!(to)
+
     _, idx = findmin(scores)
-    init_route_complete_dt = now()
-    stats.time_initSolution = ts_diff(start_dt, init_route_complete_dt)
-    println("Init solution ($(N_SIZE) size) took => $(stats.time_initSolution)")
-    local_search(darp, total_iterations, N_SIZE, routes[idx], stats)
-    local_search_completed_dt = now()
-    stats.time_localSearch = ts_diff(init_route_complete_dt, local_search_completed_dt)
-    println("Local Search ($(total_iterations) iterations) took => $(stats.time_localSearch)")
-    stats.time_total = ts_diff(start_dt, local_search_completed_dt)
+    local_search(darp, total_iterations, N_SIZE, routes[idx], stats, to)
+    stats.time_total = ts_diff(start_dt, now())
     println("Total Time => $(stats.time_total)")
+    # show(to)
+    println("")
     return stats
 end
 
@@ -76,7 +81,7 @@ function main()
     stats = run(args["nR"], args["sd"], args["aos"], args["nV"], args["Q"])
     CSV.write(join([args["statsfile"], "_", string(Threads.nthreads()), ".csv"]),
         [stats])
-    println("Done!")
+    show(to)
 end
 
 # main()
