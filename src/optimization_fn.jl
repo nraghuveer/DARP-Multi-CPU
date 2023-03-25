@@ -1,31 +1,47 @@
 include("darp.jl")
 include("parseRequests.jl")
+using StaticArrays
 using TimerOutputs
 
 const RVAL = Dict{Int64,Float64}
 const RVALS = NTuple{5,Dict{Int64,Float64}}
+const RMAP = Dict{Int64, Int64}
+const SRVALS = Tuple{RMAP, NTuple{5, Vector{Float64}}}
 
-# excepts each routes start and end depot to be actual start and deport nodes
-function route_values(route::Array{Int64}, darp::DARP)
-    RVALS
-    A = RVAL([0 => 0])
-    w = RVAL([0 => 0])
-    B = RVAL([0 => 0])
-    D = RVAL([0 => 0])
-    y = RVAL([0 => 0])
 
-    for (prev, i) in zip(route, route[2:end])
-        A[i] = D[prev] + travel_time(darp, prev, i)
-        B[i] = A[i]
-        D[i] = B[i] + darp.d[i]
-        w[i] = B[i] - A[i]
-        y[i] = y[prev] + darp.q[i]
+function route_values(route::AbstractArray{Int64}, darp::DARP) SRVALS
+    # dictionary/mapping for index to position in route
+    n = length(route)
+
+    routeMaps::Dict{Int64,Int64} = Dict{Int64,Int64}(darp.start_depot => 1)
+    A = zeros(n)
+    w = zeros(n)
+    B = zeros(n)
+    D = zeros(n)
+    y = zeros(n)
+
+    for index in eachindex(route)
+        if index <= 1
+            continue
+        end
+        # update routeMaps
+        prev = route[index-1]
+        cur = route[index]
+        routeMaps[cur] = index
+        prev_index = routeMaps[prev]
+        cur_index = routeMaps[cur]
+
+        A[index] = D[prev_index] + travel_time(darp, prev, cur)
+        B[index] = A[cur_index]
+        D[index] = B[cur_index] + darp.d[cur]
+        w[index] = B[cur_index] - A[cur_index]
+        y[index] = y[prev_index] + darp.q[cur]
     end
 
-    return A, w, B, D, y
+    return routeMaps, (A, w, B, D, y)
 end
 
-function calc_opt(tid::Int64, darp::DARP, rvalues::Dict{Int64,RVALS}, routes::Route, to::TimerOutput)
+function calc_opt(darp::DARP, rvalues::Dict{Int64,SRVALS}, routes::Route)
     c = 0.0
     q = 0.0
     d = 0.0
@@ -33,26 +49,34 @@ function calc_opt(tid::Int64, darp::DARP, rvalues::Dict{Int64,RVALS}, routes::Ro
     t = 0.0
 
     for k in keys(routes)
-        rrvalues = rvalues[k]
-        duration_of_route = rrvalues[4][darp.end_depot]
+        routeMaps::RMAP = rvalues[k][1]
+        rrvalues = rvalues[k][2]
+
+        end_depot_index = routeMaps[darp.end_depot]
+        duration_of_route = rrvalues[4][end_depot_index]
+
         # duration of route
         d += max(duration_of_route - darp.T_route, 0)
         prev = routes[k][1]
-        for i in routes[k][2:end]
+        prev_index = routeMaps[prev]
+
+        for cur in routes[k][2:end]
+            cur_index = routeMaps[cur]
             # max cap in route
-            q = max(rrvalues[5][i] - darp.Q, 0)
+            q = max(rrvalues[5][cur_index] - darp.Q, 0)
             # cost of travel
-            c += travel_time(darp, prev, i)
-            prev = i
-            if i == darp.end_depot || i == darp.start_depot || i <= 0
+            c += travel_time(darp, prev, cur)
+            prev = cur
+            if cur == darp.end_depot || cur == darp.start_depot || cur <= 0
                 continue
             end
-            c -= travel_time(darp, i, -i)
+            c -= travel_time(darp, cur, -cur)
 
-            Bi_pickup = rrvalues[3][i]
-            Bi_dropoff = rrvalues[3][-i]
-            _, li_pickup = darp.tw[i]
-            _, li_dropoff = darp.tw[-i]
+            cur_dropoff_index = routeMaps[-cur]
+            Bi_pickup = rrvalues[3][cur_index]
+            Bi_dropoff = rrvalues[3][cur_dropoff_index]
+            _, li_pickup = darp.tw[cur]
+            _, li_dropoff = darp.tw[-cur]
             # late_quantity
             w += max(Bi_pickup - li_pickup, 0) + max(Bi_dropoff - li_dropoff, 0)
             # ride time
