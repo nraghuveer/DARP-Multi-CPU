@@ -1,8 +1,9 @@
 include("darp.jl")
-include("construction_kernel.jl")
 include("optimization_fn.jl")
 include("local_search_kernel.jl")
 include("utils.jl")
+include("sampling.jl")
+include("construction_kernel.jl")
 using Base.Threads
 using Dates
 using ArgParse
@@ -18,12 +19,13 @@ function run(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64)
     println("====================================================================")
     println("Running on $(Threads.nthreads()) threads")
     stats = DARPStat(nR, sd, aos, nV, Q)
+    stats.version = "staticarrays"
     darp = DARP(nR, sd, aos, nV, Q, stats)
 
     start_dt = now()
-    N_SIZE = trunc(Int64, 0.9 * nR)
+    N_SIZE = trunc(Int64, 0.5 * nR)
     println("Using N_SIZE=$(N_SIZE)")
-    total_iterations = nR
+    total_iterations = trunc(Int64, 0.6 * nR)
     stats.localSearchIterations = total_iterations
     stats.searchMoveSize = N_SIZE
 
@@ -35,10 +37,11 @@ function run(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64)
         curRoute::Route = Dict(k => [[darp.start_depot]; cur[k]; [darp.end_depot]]
                                for k in keys(cur))
         rvalues = Dict(k => route_values(curRoute[k], darp) for k in keys(curRoute))
-        scores[i] = calc_opt(i, darp, rvalues, curRoute, to)
-        routes[i] = cur
+        scores[i] = calc_opt(darp, rvalues, curRoute)
+        routes[i] = curRoute
     end
     enable_timer!(to)
+    println("After init")
 
     _, idx = findmin(scores)
     local_search(darp, total_iterations, N_SIZE, routes[idx], stats, to)
