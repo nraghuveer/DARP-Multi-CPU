@@ -8,7 +8,7 @@ using ArgParse
 
 # requests = [50, 350, 500, 650, 1000]
 # requests = [1000, 650, 500, 350, 50]
-requests = [50]
+requests = [500]
 area_of_service = [10]
 service_duration = [2]
 
