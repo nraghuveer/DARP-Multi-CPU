@@ -20,6 +20,7 @@ mutable struct DARPStat
     time_initSolution::Float64
     time_localSearch::Float64
     time_total::Float64
+    version::String
     # improvements::Array{Float64}
     # time_localSearchMoves::Array{Float64}
     function DARPStat(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64)
