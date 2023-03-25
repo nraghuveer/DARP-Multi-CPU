@@ -5,7 +5,7 @@ include("parseRequests.jl")
 const DEFAULT_SERVICE_TIME = 2
 const DEFAULT_TW_OFFSET = 5 * 60 # 5 minutes in seconds
 const DEFAULT_WAITTIME_AT_PICKUP = 3 * 60 # 3 minutes in seconds
-const Route = Dict{Int64,Array{Int64}}
+const Route = Dict{Int64,Vector{Int64}}
 
 
 struct DARP
@@ -84,4 +84,5 @@ function travel_time(darp::DARP, one::Int64, two::Int64)
     ptwo = darp.coords[two]
     return (abs(pone.x - ptwo.x) + abs(pone.y - ptwo.y))
 end
+
 
