@@ -62,20 +62,20 @@ function route_values!(::Val{N}, darp::DARP, route::GenericRoute{N}, to::Union{N
             continue
         end
         # update routeMaps
-        prev = route[index-1]
-        cur = route[index]
-        if prev == darp.end_depot && cur == 0
+        prevNode = route[index-1]
+        curNode = route[index]
+        if prevNode == darp.end_depot && curNode == 0 # reached end of the route
             break
         end
-        rmap[cur] = index
-        prev_index = rmap[prev]
-        cur_index = rmap[cur]
+        rmap[curNode] = index
+        prevIndex = rmap[prevNode]
+        curIndex = rmap[curNode]
 
-        A[index] = D[prev_index] + travel_time(darp, prev, cur)
-        B[index] = A[cur_index]
-        D[index] = B[cur_index] + darp.d[cur]
-        w[index] = B[cur_index] - A[cur_index]
-        y[index] = y[prev_index] + darp.q[cur]
+        A[curIndex] = D[prevIndex] + travel_time(darp, prevNode, curNode)
+        B[curIndex] = A[curIndex]
+        D[curIndex] = B[curIndex] + darp.d[curNode]
+        w[curIndex] = B[curIndex] - A[curIndex]
+        y[curIndex] = y[prevIndex] + darp.q[curNode]
     end
     return RVals{N}(rmap, A, w, B, D, y)
 end
@@ -122,7 +122,7 @@ function calc_opt_for_route(::Val{N}, darp::DARP, route::GenericRoute{N}, rvals:
         # late_quantity
         w += max(Bi_pickup - li_pickup, 0) + max(Bi_dropoff - li_dropoff, 0)
         # ride time
-        t += Bi_dropoff - Bi_pickup
+        t += max(Bi_dropoff - Bi_pickup, 0)
     end
     return OptRoute(c, q, d, w, t)
 end
@@ -138,8 +138,7 @@ function calc_opt_incr(valN::Val{N}, darp::DARP, routes::Routes{N}, move::MovePa
     newRvalK2 = route_values!(valN, darp, newRouteK2, nothing)
     newOptRoutes.optRouteDict[move.k1] = calc_opt_for_route(valN, darp, newRouteK1, newRvalK1)
     newOptRoutes.optRouteDict[move.k2] = calc_opt_for_route(valN, darp, newRouteK2, newRvalK2)
-
-    return newOptRoutes
+    return reCalOptRoutes(darp, newOptRoutes)
 end
 
 function apply_move(valN::Val{N}, darp::DARP, move::MoveParams, curRoutes::Routes{N}, curRVals::Dict{Int64,RVals{N}}, curOptRoutes::OptRoutes) where {N}

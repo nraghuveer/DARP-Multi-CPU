@@ -59,8 +59,8 @@ struct DARP
     tw::Dict{Int64,Tuple{Float64,Float64}}
     w::Dict{Int64,Float64}
     vehicles::AbstractArray{Int64}
-    vehicleWeights::Weights{Int64, Int64, Vector{Int64}}
-    requestWeights::Weights{Int64, Int64, Vector{Int64}}
+    vehicleWeights::Weights{Int64,Int64,Vector{Int64}}
+    requestWeights::Weights{Int64,Int64,Vector{Int64}}
     MAX_ROUTE_SIZE::Int64
     stats::DARPStat
 
@@ -205,8 +205,9 @@ end
 
 function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tabuMem::TabuMemory,
     darp::DARP, baseRoutes::Routes{N}, destMoves::MVector{N_SIZE,MoveParams}) where {N,N_SIZE}
-    MVector{N_SIZE,MoveParams}
+    Int64
 
+    curMoves::Set{MoveParams} = Set([])
     nR = darp.nR
     nV = darp.nV
     depotIndicies = Dict{Int64,Int64}()
@@ -246,11 +247,17 @@ function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tab
             continue
         end
         param = MoveParams(i, k1, k2, p1, p2)
-        destMoves[idx] = param
-        idx += 1
-        # TODO: Tabu search
+        moveLastUsedIn = get(tabuMem, param, -TABU_SIZE)
+        if !(param in curMoves) && (moveLastUsedIn + TABU_SIZE <= iterationNum)
+            tabuMem[param] = iterationNum
+            destMoves[idx] = param
+            push!(curMoves, param)
+            idx += 1
+        else
+            tabuMissCount += 1
+        end
     end
-    return destMoves
+    return tabuMissCount
 end
 
 function copyVectorRoute!(::Val{N}, darp, srcRoute::Vector{Int64}, destRoute::Route{N}) where {N}

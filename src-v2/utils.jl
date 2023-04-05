@@ -9,7 +9,11 @@ end
 
 function percentage_improved(old::Float64, new::Float64)
     Float64
-    return (new * 100) / old
+    if old < new
+        return 0.0
+    end
+    decrease = (new * 100) / old
+    return 100 - decrease
 end
 
 function freeMem()

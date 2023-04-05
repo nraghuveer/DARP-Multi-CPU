@@ -5,11 +5,12 @@ using TimerOutputs
 
 const RVAL = Dict{Int64,Float64}
 const RVALS = NTuple{5,Dict{Int64,Float64}}
-const RMAP = Dict{Int64, Int64}
-const SRVALS = Tuple{RMAP, NTuple{5, Vector{Float64}}}
+const RMAP = Dict{Int64,Int64}
+const SRVALS = Tuple{RMAP,NTuple{5,Vector{Float64}}}
 
 
-function route_values(route::AbstractArray{Int64}, darp::DARP) SRVALS
+function route_values(route::AbstractArray{Int64}, darp::DARP)
+    SRVALS
     # dictionary/mapping for index to position in route
     n = length(route)
 
@@ -80,7 +81,7 @@ function calc_opt(darp::DARP, rvalues::Dict{Int64,SRVALS}, routes::Route)
             # late_quantity
             w += max(Bi_pickup - li_pickup, 0) + max(Bi_dropoff - li_dropoff, 0)
             # ride time
-            t += Bi_dropoff - Bi_pickup
+            t += max(Bi_dropoff - Bi_pickup, 0)
         end
     end
     return (c + q + d + w + t) / 1.0

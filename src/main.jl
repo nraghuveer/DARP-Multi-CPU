@@ -17,15 +17,15 @@ const to = TimerOutput()
 
 function run(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64)
     println("====================================================================")
-    println("Running on $(Threads.nthreads()) threads")
+    println("Running on $(Threads.nthreads()) threads for nR=$(nR)")
     stats = DARPStat(nR, sd, aos, nV, Q)
     stats.version = "staticarrays"
     darp = DARP(nR, sd, aos, nV, Q, stats)
 
     start_dt = now()
-    N_SIZE = trunc(Int64, 0.5 * nR)
+    N_SIZE = trunc(Int64, 0.8 * nR)
     println("Using N_SIZE=$(N_SIZE)")
-    total_iterations = trunc(Int64, 0.6 * nR)
+    total_iterations = trunc(Int64, 5 * nR)
     stats.localSearchIterations = total_iterations
     stats.searchMoveSize = N_SIZE
 

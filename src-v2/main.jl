@@ -30,7 +30,7 @@ function run(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64, enableTimerL
     end
 
     start_dt = now()
-    N_SIZE = trunc(Int64, 0.5 * nR)
+    N_SIZE = trunc(Int64, 0.9 * nR)
     println("Using N_SIZE=$(N_SIZE)")
     println("Free Memory $(freeMem())")
     total_iterations = trunc(Int64, 0.9 * nR)
@@ -126,5 +126,3 @@ function main()
         [stats])
     show(to)
 end
-
-# main()
