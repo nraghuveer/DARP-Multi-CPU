@@ -23,7 +23,7 @@ def main():
     # plt.show()
 
     # compare_tt_across_threads(filename, threads, aos, sd)
-    show_speedup(filename, [1,2,4,8,16,32,56], nR, aos, sd)
+    show_speedup(filename, [1,2,4,8,12,16,24,32], nR, aos, sd)
 
 def add_plot(ax, filename, threads, aos, sd):
     df = pd.read_csv(filename)
