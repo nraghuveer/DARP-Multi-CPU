@@ -1,10 +1,13 @@
 # helper functions for sampling - specific to this algorithm
 include("darp.jl")
 using StatsBase
+using Test
 using Random
 
-function generate_initial_routes(nR::Int64, nV::Int64) Dict{Int64, Array{Int64}}
-    routes::Route = Dict{Int64, Array{Int64}}([])
+function generate_random_vectorRoutes(darp::DARP, to::TimerOutput)
+    Dict{Int64,Array{Int64}}
+    nR = darp.nR
+    routes = Dict(k => [darp.start_depot] for k in darp.vehicles)
     # the idea is to generate a route for each vehcilce
     # and also assign a vechicle to each request
     # everything should be completely random
@@ -13,27 +16,40 @@ function generate_initial_routes(nR::Int64, nV::Int64) Dict{Int64, Array{Int64}}
 
     # TODO: might have be little smart with this weights
     # for now, make all vehicles equal probability
-    requestWeights = Weights(fill(1, nR))
-    randomized_requests = StatsBase.sample(1:nR, requestWeights, nR)
-    vehicles = collect(nR+1:nR+nV)
-    # initialize empty routes for each vehicle
-    for v in vehicles
-        routes[v] = []
+    @timeit to "sampling" begin
+        randomized_requests = StatsBase.sample(1:nR, darp.requestWeights, nR)
+        randomized_ks = StatsBase.sample(darp.vehicles, darp.vehicleWeights, nR, replace=true, ordered=false)
     end
-    vehicleWeights = Weights(fill(1, nV))
-    for req in randomized_requests
-        k = StatsBase.sample(vehicles, vehicleWeights, 1)
-        # sample generates a array, so take first item
-        k = k[1]
+
+    for idx in 1:nR
+        req = randomized_requests[idx]
+        k = randomized_ks[idx]
         l = length(routes[k])
-        if l === 0
-            p1 = 1
-        else
-            p1 = rand(1:l+1)
+        @timeit to "random" begin
+            p1 = rand(2:l+1)
+            p2 = rand(p1+1:l+2)
         end
-        insert!(routes[k], p1, req)
-        p2 = rand(p1+1:l+2)
-        insert!(routes[k], p2, -req)
+        @timeit to "insertion" begin
+            insert!(routes[k], p1, req)
+            insert!(routes[k], p2, -req)
+        end
     end
+
+    # TODO: IDEA => can use static arrays here, just insert into the next avaiable index
+    # for idx in 1:nR
+    #     k = randomized_ks[idx]
+    #     req = randomized_requests[idx]
+    #     append!(routes[k], [req, -req])
+    # end
+    for k in darp.vehicles
+        append!(routes[k], darp.end_depot)
+    end
+
+
+
     return routes
+end
+
+function generate_random_route!(::Val{N}, darp::DARP, to2::TimerOutput) where {N}
+    return generate_random_vectorRoutes(darp, to2)
 end
