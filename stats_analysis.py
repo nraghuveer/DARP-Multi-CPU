@@ -23,12 +23,14 @@ def main():
     # plt.show()
 
     # compare_tt_across_threads(filename, threads, aos, sd)
-    show_speedup(filename, [1,2,4,8,12,16,24,32], nR, aos, sd)
+    print(f"reading from {filename} , nR={nR}")
+    show_speedup(filename, [6,4,2,1], nR, aos, sd)
 
 def add_plot(ax, filename, threads, aos, sd):
     df = pd.read_csv(filename)
     # plt.xlabel("Number of requests")
     # plt.ylabel("Total Time")
+    print(df)
     for thread in threads:
         points = [(row['nR'], row['time_total']) for _, row in df.iterrows() if (int(row['sd']) == sd and int(row['aos']) == aos and int(row['nThreads']) == thread)]
         ax.plot([x[0] for x in points], [x[1] for x in points])

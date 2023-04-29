@@ -1,4 +1,3 @@
-# TODO -> make these config driven?
 include("utils.jl")
 include("parseRequests.jl")
 using StaticArrays
@@ -224,7 +223,6 @@ function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tab
     seedRng = MersenneTwister(iterationNum)
     idx = 1
     while idx <= N_SIZE
-        # rng = MersenneTwister(seed)
         k1, k2 = StatsBase.sample(seedRng, vehicles, vehicleWeights, 2, replace=false)
         if depotIndicies[k1] <= 2
             continue
@@ -266,3 +264,11 @@ function copyVectorRoute!(::Val{N}, darp, srcRoute::Vector{Int64}, destRoute::Ro
     end
     return destRoute
 end
+
+function adjustTimeWindows() {
+    # as per the TW adjustment technique in the paper
+    # when a timewindow of non critical vertex is constrained, the direction
+    # of search is intensified towards more feasible region in the search space
+
+    # 1. Decide on the non-critical vertex
+}
