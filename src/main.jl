@@ -15,27 +15,18 @@ using Test
 
 const to = TimerOutput()
 
-function run(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64, enableTimerLogs::Bool=true)
+function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, enableTimerLogs::Bool=true)
     println("====================================================================")
     println("Running on $(Threads.nthreads()) threads")
-
+    nR = darp.nR
     if !enableTimerLogs
         disable_timer!(to)
     end
 
-    @timeit to "darpInit" begin
-        stats = DARPStat(nR, sd, aos, nV, Q)
-        stats.version = "memoptimization"
-        darp = DARP(nR, sd, aos, nV, Q, stats)
-    end
-
     start_dt = now()
-    N_SIZE = trunc(Int64, 0.9 * nR)
     println("Using N_SIZE=$(N_SIZE)")
     println("Free Memory $(freeMem())")
     total_iterations = trunc(Int64, 0.9 * nR)
-    stats.localSearchIterations = total_iterations
-    stats.searchMoveSize = N_SIZE
 
     valN = Val(darp.MAX_ROUTE_SIZE)
     bestScore = Inf
@@ -90,39 +81,4 @@ function run(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64, enableTimerL
     end
     # println("")
     return stats
-end
-
-function main()
-    s = ArgParseSettings()
-    @add_arg_table s begin
-        "--nR"
-        help = "number of requests"
-        arg_type = Int64
-        default = 50
-        "--sd"
-        help = "service duration"
-        arg_type = Int64
-        default = 2
-        "--aos"
-        help = "area of service in Kms"
-        arg_type = Int64
-        default = 10
-        "--nV"
-        help = "number of vehicles"
-        arg_type = Int64
-        default = 10
-        "--Q"
-        help = "vehicle capacity"
-        arg_type = Int64
-        default = 5
-        "--statsfile"
-        help = "stats outputfilename"
-        arg_type = String
-        default = Dates.format(now(), "mm-dd-yyyy HH:MM:SS")
-    end
-    args = parse_args(s)
-    stats = run(args["nR"], args["sd"], args["aos"], args["nV"], args["Q"])
-    CSV.write(join([args["statsfile"], "_", string(Threads.nthreads()), ".csv"]),
-        [stats])
-    show(to)
 end

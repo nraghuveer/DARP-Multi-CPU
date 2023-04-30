@@ -1,14 +1,10 @@
 include("utils.jl")
 include("parseRequests.jl")
+include("parseBenchmarkData.jl")
 using StaticArrays
 using Test
 using TimerOutputs
 using StatsBase
-
-
-DEFAULT_SERVICE_TIME = 2
-DEFAULT_TW_OFFSET = 5 * 60 # 5 minutes in seconds
-DEFAULT_WAITTIME_AT_PICKUP = 3 * 60 # 3 minutes in seconds
 
 struct MoveParams
     i::Int64
@@ -41,13 +37,10 @@ end
 
 const TabuMemory = Dict{MoveParams,Int64}
 
-
 struct DARP
     nR::Int64
-    sd::Float64 # in seconds
-    aos::Int64 # in sqmiles
     nV::Int64
-    T_route::Float64 # lets say a route can run as long as service duration
+    T_route::Float64 # max route duration
     requests::AbstractArray{Request}
     start_depot::Int64
     end_depot::Int64
@@ -56,25 +49,20 @@ struct DARP
     d::Dict{Int64,Int64}
     q::Dict{Int64,Int64}
     tw::Dict{Int64,Tuple{Float64,Float64}}
-    w::Dict{Int64,Float64}
     vehicles::AbstractArray{Int64}
     vehicleWeights::Weights{Int64,Int64,Vector{Int64}}
     requestWeights::Weights{Int64,Int64,Vector{Int64}}
     MAX_ROUTE_SIZE::Int64
     stats::DARPStat
 
-    function DARP(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64, stats::DARPStat)
-        start_depot::Int64 = 0
-        end_depot::Int64 = 2 * nR + 1
+    function DARP(datafile::String, stats::DARPStat)
+        requests, depotPoint, nR, nV, Q, T_route = parseFile("../benchmark-data/chairedistributique/data/darp/tabu/" + datafile)
+        start_depot = depotPoint
+        end_depot = depotPoint
 
-        sdInSeconds::Float64 = sd * 60 * 60
-        aosInSqMiles::Int64 = trunc(Int64, aos * 0.386102)
-        T_route::Float64 = sdInSeconds * 0.5
-
-        requests = parseData(nR, sd, aos)
         coords::Dict{Int64,Point} = Dict{Int64,Point}([])
-        coords[start_depot] = requests[1].src
-        coords[end_depot] = requests[1].dst
+        coords[start_depot] = depotPoint
+        coords[end_depot] = depotPoint
 
         d::Dict{Int64,Int64} = Dict{Int64,Int64}([])
         d[start_depot] = 0
@@ -85,39 +73,31 @@ struct DARP
         q[end_depot] = 0
 
         tw::Dict{Int64,Tuple{Float64,Float64}} = Dict([])
-        offset::Int64 = DEFAULT_TW_OFFSET
-        tw[start_depot] = (0, offset)
-        tw[end_depot] = (T_route, T_route + offset)
+        tw[start_depot] = (0, 0)
+        tw[end_depot] = (0, 0)
 
-        w::Dict{Int64,Float64} = Dict{Int64,Float64}([])
-        w[start_depot] = 0
-        w[end_depot] = 0
-
-        for req in requests[2:end]
+        for req in requests[1:end]
             coords[req.id] = req.src
             coords[-req.id] = req.dst
 
             # data doesnt have specific service time at each node, so u;se const value
-            d[req.id] = 2
-            d[-req.id] = 2
+            d[req.id] = req.pickup_servicetime
+            d[-req.id] = req.dropoff_servicetime
 
             # change in load after each node
-            q[req.id] = req.load
-            q[-req.id] = -req.load
+            q[req.id] = req.pickup_load
+            q[-req.id] = -req.dropoff_load
 
-            tw[req.id] = (req.pickup_time, req.pickup_time + offset)
-            tw[-req.id] = (req.dropoff_time, req.dropoff_time + offset)
-
-            w[req.id] = DEFAULT_WAITTIME_AT_PICKUP
-            w[-req.id] = 0
+            tw[req.id] = req.pickup_tw
+            tw[-req.id] = req.dropoff_tw
         end
 
         vehicleWeights = Weights(fill(1, nV))
         requestWeights = Weights(fill(1, nR))
         MAX_ROUTE_SIZE = trunc(Int64, nR / nV) + trunc(Int64, nR * 0.8)
-        return new(nR, sdInSeconds, aosInSqMiles,
-            nV, T_route, requests, start_depot, end_depot,
-            Q, coords, d, q, tw, w, collect(nR+1:nR+nV),
+
+        return new(nR, nV, T_route, requests, start_depot, end_depot,
+            Q, coords, d, q, tw, collect(nR+1:nR+nV),
             vehicleWeights, requestWeights,
             MAX_ROUTE_SIZE, stats)
     end
@@ -265,10 +245,3 @@ function copyVectorRoute!(::Val{N}, darp, srcRoute::Vector{Int64}, destRoute::Ro
     return destRoute
 end
 
-function adjustTimeWindows() {
-    # as per the TW adjustment technique in the paper
-    # when a timewindow of non critical vertex is constrained, the direction
-    # of search is intensified towards more feasible region in the search space
-
-    # 1. Decide on the non-critical vertex
-}

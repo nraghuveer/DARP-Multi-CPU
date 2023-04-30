@@ -35,7 +35,6 @@ struct OptRoutes
     end
 end
 
-# TODO: can be improved
 function copyOptRoutes(darp::DARP, optRoutes::OptRoutes)
     OptRoutes
     return OptRoutes(darp, copy(optRoutes.optRouteDict))
