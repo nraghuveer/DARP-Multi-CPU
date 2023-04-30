@@ -56,9 +56,10 @@ struct DARP
     stats::DARPStat
 
     function DARP(datafile::String, stats::DARPStat)
-        requests, depotPoint, nR, nV, Q, T_route = parseFile("../benchmark-data/chairedistributique/data/darp/tabu/" + datafile)
-        start_depot = depotPoint
-        end_depot = depotPoint
+        filepath = string("benchmark-data/chairedistributique/data/darp/tabu/", datafile)
+        requests, depotPoint, nR, nV, Q, T_route = parseFile(filepath)
+        start_depot = 0
+        end_depot = 2 * nR + 1
 
         coords::Dict{Int64,Point} = Dict{Int64,Point}([])
         coords[start_depot] = depotPoint
@@ -94,7 +95,7 @@ struct DARP
 
         vehicleWeights = Weights(fill(1, nV))
         requestWeights = Weights(fill(1, nR))
-        MAX_ROUTE_SIZE = trunc(Int64, nR / nV) + trunc(Int64, nR * 0.8)
+        MAX_ROUTE_SIZE = nR*2
 
         return new(nR, nV, T_route, requests, start_depot, end_depot,
             Q, coords, d, q, tw, collect(nR+1:nR+nV),

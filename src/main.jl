@@ -24,7 +24,9 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, enableTimerLogs::Bool=t
     end
 
     start_dt = now()
+    println("Using nR=$(nR) | nV=$(darp.nV) | Q=$(darp.Q)")
     println("Using N_SIZE=$(N_SIZE)")
+    println("Using MAX_ROUTE_SIZE=$(darp.MAX_ROUTE_SIZE)")
     println("Free Memory $(freeMem())")
     total_iterations = trunc(Int64, 0.9 * nR)
 

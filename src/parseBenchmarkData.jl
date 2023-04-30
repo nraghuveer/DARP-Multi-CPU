@@ -66,7 +66,9 @@ function parseFile(path::String)
             (pe, pl), (de, dl), pd, dd, pq, dq)
         push!(requests, request)
     end
-    return requests, depotPoint, n, m, Q, max_route_duration
+    nR = trunc(Int64, n / 2)
+    println(length(requests))
+    return requests, depotPoint, nR, m, Q, max_route_duration
 end
 
 function travel_time(pone::Point, ptwo::Point)
