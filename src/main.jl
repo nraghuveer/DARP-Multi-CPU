@@ -23,7 +23,7 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, enableTim
         disable_timer!(to)
     end
 
-    start_dt = now()
+    program_start = now()
     println("Using nR=$(nR) | nV=$(darp.nV) | Q=$(darp.Q)")
     println("Using N_SIZE=$(N_SIZE)")
     println("Using BKS=$(bks)")
@@ -70,12 +70,15 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, enableTim
 
     # convert vector routes to MVectors
     initRoutes::Routes{darp.MAX_ROUTE_SIZE} = Dict(k => copyVectorRoute!(valN, darp, bestRoutes[k], emptyRoute(darp)) for k in darp.vehicles)
+    search_start = now()
     # build init routes
-    GC.gc(true)
     @timeit to "search" begin
         search(Val(darp.MAX_ROUTE_SIZE), darp, bks, N_SIZE, initRoutes, stats, to)
     end
-    stats.time_total = ts_diff(start_dt, now())
+    search_end = now()
+    stats.time_localSearch = ts_diff(search_start, search_end)
+    stats.time_total = ts_diff(program_start, now())
+    println("Search Time => $(stats.time_localSearch)")
     println("Total Time => $(stats.time_total)")
     show(to)
     if !enableTimerLogs
