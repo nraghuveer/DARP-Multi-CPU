@@ -9,7 +9,7 @@ include("utils.jl")
 const Int = Int64
 
 
-function search(valN::Val{N}, darp::DARP, iterations::Int, N_SIZE::Int, initRoutes::Routes, stats::DARPStat, to::TimerOutput) where {N}
+function search(valN::Val{N}, darp::DARP, bks::Float64, N_SIZE::Int, initRoutes::Routes, stats::DARPStat, to::TimerOutput) where {N}
     tabuMem = TabuMemory()
 
     @timeit to "searchInit" begin
@@ -28,7 +28,8 @@ function search(valN::Val{N}, darp::DARP, iterations::Int, N_SIZE::Int, initRout
     baseVal = curOptRoutes.Val
 
     # TODO: tabu memory
-    for iterNum in 1:iterations
+    iterNum = 1
+    while true
         @timeit to "localsearch#$(iterNum)" begin
             @timeit to "randomMove" begin
                 tabuMissCount = generate_random_moves(valN, Val(N_SIZE), iterNum, tabuMem, darp, curRoutes, moves)
@@ -50,8 +51,14 @@ function search(valN::Val{N}, darp::DARP, iterations::Int, N_SIZE::Int, initRout
         # use the new ones as current and continue
         curRoutes, curRVals, curOptRoutes = newRoutes, newRVals, newOptRoutes
         improved = percentage_improved(baseVal, bestOptRoutes.Val)
-        println("$(iterNum)/$(iterations) | tabuMissCount=$(tabuMissCount) | voilations == base=$(baseVal) best=$(bestOptRoutes.Val) | improved=$(improved)")
+        gap = bestOptRoutes.Val - bks
+        println("$(iterNum) | gap=$(gap) | tabuMissCount=$(tabuMissCount) | best=$(bestOptRoutes.Val)")
         println("Free Memory $(freeMem())")
+        if gap <= 0
+            println("Total Iterations: $(iterNum)")
+            break
+        end
+        iterNum += 1
     end
 end
 

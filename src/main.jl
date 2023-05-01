@@ -15,7 +15,7 @@ using Test
 
 const to = TimerOutput()
 
-function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, enableTimerLogs::Bool=true)
+function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, enableTimerLogs::Bool=true)
     println("====================================================================")
     println("Running on $(Threads.nthreads()) threads")
     nR = darp.nR
@@ -26,7 +26,7 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, enableTimerLogs::Bool=t
     start_dt = now()
     println("Using nR=$(nR) | nV=$(darp.nV) | Q=$(darp.Q)")
     println("Using N_SIZE=$(N_SIZE)")
-    println("Using MAX_ROUTE_SIZE=$(darp.MAX_ROUTE_SIZE)")
+    println("Using BKS=$(bks)")
     println("Free Memory $(freeMem())")
     total_iterations = trunc(Int64, 0.9 * nR)
 
@@ -73,7 +73,7 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, enableTimerLogs::Bool=t
     # build init routes
     GC.gc(true)
     @timeit to "search" begin
-        search(Val(darp.MAX_ROUTE_SIZE), darp, total_iterations, N_SIZE, initRoutes, stats, to)
+        search(Val(darp.MAX_ROUTE_SIZE), darp, bks, N_SIZE, initRoutes, stats, to)
     end
     stats.time_total = ts_diff(start_dt, now())
     println("Total Time => $(stats.time_total)")
