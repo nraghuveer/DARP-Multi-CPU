@@ -56,6 +56,7 @@ function search(valN::Val{N}, darp::DARP, bks::Float64, N_SIZE::Int, initRoutes:
         println("Free Memory $(freeMem())")
         if gap <= 0
             println("Total Iterations: $(iterNum)")
+            stats.total_iterations = iterNum
             break
         end
         iterNum += 1

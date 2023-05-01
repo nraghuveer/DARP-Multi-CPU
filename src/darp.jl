@@ -95,7 +95,7 @@ struct DARP
 
         vehicleWeights = Weights(fill(1, nV))
         requestWeights = Weights(fill(1, nR))
-        MAX_ROUTE_SIZE = nR*2
+        MAX_ROUTE_SIZE = nR * 2
 
         return new(nR, nV, T_route, requests, start_depot, end_depot,
             Q, coords, d, q, tw, collect(nR+1:nR+nV),
@@ -245,4 +245,3 @@ function copyVectorRoute!(::Val{N}, darp, srcRoute::Vector{Int64}, destRoute::Ro
     end
     return destRoute
 end
-

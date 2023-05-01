@@ -33,15 +33,16 @@ function parseFile(path::String)
     # Extract header and depot fields``
     m = trunc(Int64, header[1])
     n = trunc(Int64, header[2])
+    nR = trunc(Int64, n / 2)
     max_route_duration = trunc(Int64, header[3])
     Q = trunc(Int64, header[4])
     max_ride_time = trunc(Int64, header[5])
     depotPoint = Point(depotLine[2], depotLine[3])
 
     # only read half lines, project for inbound
-    for idx in 1:trunc(Int64, n / 2)
+    for idx in 0:trunc(Int64, nR)
         pickupIdx = idx + 2
-        dropoffIdx = (idx * 2) + 2
+        dropoffIdx = (idx + nR) + 2
         pickupParts = lineToFloatParts(filelines[pickupIdx], 7)
         dropoffParts = lineToFloatParts(filelines[dropoffIdx], 7)
         i::Int64 = trunc(Int64, pickupParts[1])
@@ -66,7 +67,6 @@ function parseFile(path::String)
             (pe, pl), (de, dl), pd, dd, pq, dq)
         push!(requests, request)
     end
-    nR = trunc(Int64, n / 2)
     println(length(requests))
     return requests, depotPoint, nR, m, Q, max_route_duration
 end
