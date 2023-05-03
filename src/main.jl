@@ -75,8 +75,7 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, enableTim
     @timeit to "search" begin
         search(Val(darp.MAX_ROUTE_SIZE), darp, bks, N_SIZE, initRoutes, stats, to)
     end
-    search_end = now()
-    stats.time_localSearch = ts_diff(search_start, search_end)
+    stats.time_localSearch = ts_diff(search_start, now())
     stats.time_total = ts_diff(program_start, now())
     println("Search Time => $(stats.time_localSearch)")
     println("Total Time => $(stats.time_total)")
