@@ -14,7 +14,7 @@ base_time = df[df['nThreads'] == 1][time_column].values[0]
 df['speedup'] = base_time / df[time_column]
 
 # Generate the plot
-plt.plot(df['nThreads'], df['speedup'], marker='o')
+plt.plot(df['nThreads'], df['speedup'])
 plt.xlabel('nThreads')
 plt.ylabel('Speedup')
 plt.title('Speedup vs. nThreads')

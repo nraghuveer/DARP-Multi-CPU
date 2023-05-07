@@ -155,4 +155,3 @@ function apply_move(valN::Val{N}, darp::DARP, move::MoveParams, curRoutes::Route
     # println(newRoutes[move.k1])
     return newRoutes, newRVals, reCalOptRoutes(darp, newOptRoutes)
 end
-

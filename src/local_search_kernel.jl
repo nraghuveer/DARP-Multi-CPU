@@ -8,6 +8,8 @@ include("darp.jl")
 include("utils.jl")
 const Int = Int64
 
+Tt_Delta = 0.7
+NIT = 3
 
 function search(valN::Val{N}, darp::DARP, bks::Float64, N_SIZE::Int, initRoutes::Routes, stats::DARPStat, to::TimerOutput) where {N}
     tabuMem = TabuMemory()
@@ -27,12 +29,18 @@ function search(valN::Val{N}, darp::DARP, bks::Float64, N_SIZE::Int, initRoutes:
 
     baseVal = curOptRoutes.Val
 
-    # TODO: tabu memory
+    # Tabu Tenure => number of iteration for which a move is marked a tabu which forbids it repeating
+    # This is Dynamic tabu tenure, which means it value is based on the object function value
+    Tt::Float64 = 1.0
+    # we need to know if the value increased or decreased in last NIT number of times
+    # if value is true, it is increased, else decreased
+    optValHistory = Dict{Int64,Bool}([])
+
     iterNum = 1
     while true
         @timeit to "localsearch#$(iterNum)" begin
             @timeit to "randomMove" begin
-                tabuMissCount = generate_random_moves(valN, Val(N_SIZE), iterNum, tabuMem, darp, curRoutes, moves)
+                tabuMissCount = generate_random_moves(valN, Val(N_SIZE), iterNum, tabuMem, Tt, darp, curRoutes, moves)
             end
             @timeit to "localsearch" begin
                 bestTid = local_search(Val(N), Val(N_SIZE), darp, N_SIZE, scores, moves, curRoutes, curOptRoutes, to)
@@ -42,23 +50,43 @@ function search(valN::Val{N}, darp::DARP, bks::Float64, N_SIZE::Int, initRoutes:
         # DO we really want to always applY?????
         bestMove = moves[bestTid]
         newRoutes, newRVals, newOptRoutes = apply_move(valN, darp, bestMove, curRoutes, curRVals, curOptRoutes)
-        if newOptRoutes.Val <= bestOptRoutes.Val
+        if newOptRoutes.Val < bestOptRoutes.Val
             bestRoutes = newRoutes
             bestRVals = newRVals
             bestOptRoutes = newOptRoutes
+
+            optValHistory[iterNum] = true
+        else
+            optValHistory[iterNum] = false
         end
 
         # use the new ones as current and continue
         curRoutes, curRVals, curOptRoutes = newRoutes, newRVals, newOptRoutes
         improved = percentage_improved(baseVal, bestOptRoutes.Val)
         gap = bestOptRoutes.Val - bks
-        println("$(iterNum) | gap=$(gap) | tabuMissCount=$(tabuMissCount) | best=$(bestOptRoutes.Val)")
+        println("$(iterNum) | gap=$(gap) | Tt=$(Tt) | tabuMissCount=$(tabuMissCount) | best=$(bestOptRoutes.Val) | cur=$(curOptRoutes.Val)")
         println("Free Memory $(freeMem())")
         if gap <= 0
             println("Total Iterations: $(iterNum)")
             stats.total_iterations = iterNum
             break
         end
+
+        history = Array{Bool}([])
+        if iterNum >= NIT
+            for oldIterNum = iterNum-NIT+1:iterNum
+                push!(history, optValHistory[oldIterNum])
+            end
+        end
+
+        if any(history)
+            Tt = max(1.0, Tt - ceil(Tt_Delta * Tt))
+            println("Reducing Tabu Tenure = ", Tt)
+        else
+            Tt = Tt + ceil(Tt_Delta * Tt)
+            println("Increasing Tabu Tenure = ", Tt)
+        end
+
         iterNum += 1
     end
 end

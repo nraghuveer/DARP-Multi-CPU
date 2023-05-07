@@ -95,7 +95,7 @@ struct DARP
 
         vehicleWeights = Weights(fill(1, nV))
         requestWeights = Weights(fill(1, nR))
-        MAX_ROUTE_SIZE = nR*2
+        MAX_ROUTE_SIZE = nR * 2
 
         return new(nR, nV, T_route, requests, start_depot, end_depot,
             Q, coords, d, q, tw, collect(nR+1:nR+nV),
@@ -183,7 +183,7 @@ function remove_from_route(::Val{N}, darp::DARP, baseRoute::Route{N}, i::Int64) 
     return newRoute
 end
 
-function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tabuMem::TabuMemory,
+function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tabuMem::TabuMemory, Tt::Float64,
     darp::DARP, baseRoutes::Routes{N}, destMoves::MVector{N_SIZE,MoveParams}) where {N,N_SIZE}
     Int64
 
@@ -196,7 +196,7 @@ function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tab
     end
     routeRanges = Dict(k => 1:depotIndicies[k] for k in darp.vehicles)
     routeRangeWeights = Dict(k => Weights(fill(1, depotIndicies[k])) for k in darp.vehicles)
-    TABU_SIZE = trunc(Int64, nR * 0.5)
+
     vehicles = collect(nR+1:nR+nV)
     vehicleWeights = Weights(fill(1, nV))
 
@@ -226,8 +226,8 @@ function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tab
             continue
         end
         param = MoveParams(i, k1, k2, p1, p2)
-        moveLastUsedIn = get(tabuMem, param, -TABU_SIZE)
-        if !(param in curMoves) && (moveLastUsedIn + TABU_SIZE <= iterationNum)
+        moveLastUsedIn = get(tabuMem, param, - trunc(Int64, Tt))
+        if !(param in curMoves) && (moveLastUsedIn + Tt <= iterationNum)
             tabuMem[param] = iterationNum
             destMoves[idx] = param
             push!(curMoves, param)
@@ -245,3 +245,5 @@ function copyVectorRoute!(::Val{N}, darp, srcRoute::Vector{Int64}, destRoute::Ro
     end
     return destRoute
 end
+
+
