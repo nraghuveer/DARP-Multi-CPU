@@ -49,6 +49,7 @@ struct DARP
     d::Dict{Int64,Int64}
     q::Dict{Int64,Int64}
     tw::Dict{Int64,Tuple{Float64,Float64}}
+    standardCost::Float64
     vehicles::AbstractArray{Int64}
     vehicleWeights::Weights{Int64,Int64,Vector{Int64}}
     requestWeights::Weights{Int64,Int64,Vector{Int64}}
@@ -77,6 +78,8 @@ struct DARP
         tw[start_depot] = (0, 0)
         tw[end_depot] = (0, 0)
 
+        standardCost = 0.0
+
         for req in requests[1:end]
             coords[req.id] = req.src
             coords[-req.id] = req.dst
@@ -91,6 +94,8 @@ struct DARP
 
             tw[req.id] = req.pickup_tw
             tw[-req.id] = req.dropoff_tw
+
+            standardCost += travel_time(req.src, req.dst)
         end
 
         vehicleWeights = Weights(fill(1, nV))
@@ -98,7 +103,7 @@ struct DARP
         MAX_ROUTE_SIZE = nR * 2
 
         return new(nR, nV, T_route, requests, start_depot, end_depot,
-            Q, coords, d, q, tw, collect(nR+1:nR+nV),
+            Q, coords, d, q, tw, standardCost, collect(nR+1:nR+nV),
             vehicleWeights, requestWeights,
             MAX_ROUTE_SIZE, stats)
     end
@@ -186,16 +191,19 @@ end
 function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tabuMem::TabuMemory, Tt::Float64,
     darp::DARP, baseRoutes::Routes{N}, destMoves::MVector{N_SIZE,MoveParams}) where {N,N_SIZE}
     Int64
+    routes::Dict{Int64, Vector{Int64}} = Dict(k => [] for k in darp.vehicles)
+    for k in darp.vehicles
+        for v in baseRoutes[k]
+            if v == darp.end_depot
+                break
+            end
+            push!(routes[k], v)
+        end
+    end
 
     curMoves::Set{MoveParams} = Set([])
     nR = darp.nR
     nV = darp.nV
-    depotIndicies = Dict{Int64,Int64}()
-    for k in darp.vehicles
-        depotIndicies[k] = findlast(x -> x == darp.end_depot, baseRoutes[k])
-    end
-    routeRanges = Dict(k => 1:depotIndicies[k] for k in darp.vehicles)
-    routeRangeWeights = Dict(k => Weights(fill(1, depotIndicies[k])) for k in darp.vehicles)
 
     vehicles = collect(nR+1:nR+nV)
     vehicleWeights = Weights(fill(1, nV))
@@ -205,26 +213,22 @@ function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tab
     idx = 1
     while idx <= N_SIZE
         k1, k2 = StatsBase.sample(seedRng, vehicles, vehicleWeights, 2, replace=false)
-        if depotIndicies[k1] <= 2
-            continue
-        end
+
         # pick a request from k1
-        # IMPROVEMENT: Use range on index rather than routes
-        iIdx = StatsBase.sample(seedRng, routeRanges[k1], routeRangeWeights[k1], 1)
-        i = baseRoutes[k1][iIdx]
-        i = abs(i[1])
+        len_k1 = length(routes[k1])
+        iRes = StatsBase.sample(seedRng, routes[k1], Weights(fill(1, len_k1)), 1)
+        i = abs(iRes[1])
         if i == darp.start_depot || i == darp.end_depot
             continue
         end
-        len_k2::Int64 = depotIndicies[k2]
-        if len_k2 == 0
-            continue
+
+        len_k2::Int64 = length(routes[k2])
+        if len_k2 <= 3
+            p1, p2 = 1, 2
+        else
+            p1, p2 = StatsBase.sample(seedRng, 2:len_k2-1, Weights(fill(1, len_k2-2)), 2, replace=false, ordered=true)
         end
 
-        p1, p2 = StatsBase.sample(seedRng, 1:len_k2, Weights(fill(1, len_k2)), 2, replace=false, ordered=true)
-        if p1 == 1 || p2 == len_k2
-            continue
-        end
         param = MoveParams(i, k1, k2, p1, p2)
         moveLastUsedIn = get(tabuMem, param, - trunc(Int64, Tt))
         if !(param in curMoves) && (moveLastUsedIn + Tt <= iterationNum)

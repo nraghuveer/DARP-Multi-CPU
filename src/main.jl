@@ -80,6 +80,7 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, enableTim
     println("Search Time => $(stats.time_localSearch)")
     println("Total Time => $(stats.time_total)")
     show(to)
+    println("\n")
     if !enableTimerLogs
         enable_timer!(to)
     end

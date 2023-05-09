@@ -30,7 +30,7 @@ struct OptRoutes
             w += roptVals[k].w
             t += roptVals[k].t
         end
-        Val = (c + q + d + w + t) / 1.0
+        Val = (c + q + d + w + t - darp.standardCost) / 1.0
         return new(roptVals, Val)
     end
 end
@@ -112,7 +112,6 @@ function calc_opt_for_route(::Val{N}, darp::DARP, route::GenericRoute{N}, rvals:
         if cur == darp.end_depot || cur == darp.start_depot || cur <= 0
             continue
         end
-        c -= travel_time(darp, cur, -cur)
         cur_dropoff_index = rmap[-cur]
         Bi_pickup = rvals.B[cur_index]
         Bi_dropoff = rvals.B[cur_dropoff_index]
