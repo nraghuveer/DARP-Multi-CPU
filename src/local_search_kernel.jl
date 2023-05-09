@@ -8,7 +8,7 @@ include("darp.jl")
 include("utils.jl")
 const Int = Int64
 
-Tt_Delta = 0.7
+Tt_Delta = 0.0
 NIT = 3
 
 function search(valN::Val{N}, darp::DARP, bks::Float64, N_SIZE::Int, initRoutes::Routes, stats::DARPStat, to::TimerOutput) where {N}
@@ -65,7 +65,6 @@ function search(valN::Val{N}, darp::DARP, bks::Float64, N_SIZE::Int, initRoutes:
         improved = percentage_improved(baseVal, bestOptRoutes.Val)
         gap = bestOptRoutes.Val - bks
         println("$(iterNum) | gap=$(gap) | Tt=$(Tt) | tabuMissCount=$(tabuMissCount) | best=$(bestOptRoutes.Val) | cur=$(curOptRoutes.Val)")
-        println("Free Memory $(freeMem())")
         if gap <= 0
             println("Total Iterations: $(iterNum)")
             stats.total_iterations = iterNum
@@ -77,14 +76,6 @@ function search(valN::Val{N}, darp::DARP, bks::Float64, N_SIZE::Int, initRoutes:
             for oldIterNum = iterNum-NIT+1:iterNum
                 push!(history, optValHistory[oldIterNum])
             end
-        end
-
-        if any(history)
-            Tt = max(1.0, Tt - ceil(Tt_Delta * Tt))
-            println("Reducing Tabu Tenure = ", Tt)
-        else
-            Tt = Tt + ceil(Tt_Delta * Tt)
-            println("Increasing Tabu Tenure = ", Tt)
         end
 
         iterNum += 1
