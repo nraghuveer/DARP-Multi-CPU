@@ -1,3 +1,4 @@
-1. Time window tightening
-2. Intensification
-3. Diversification?
+1. Fix Tabu Tenure
+2. Record and save the history for optVal, tabuMiss, memory
+2. Ability to run until given time
+3. Read from bigger dataset
