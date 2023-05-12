@@ -1,6 +1,9 @@
 import os
 
 directory_path = './benchmark-data/chairedistributique/data/darp/tabu/'
+threads = [1,2,4,8,16,32,64]
+SAMPLE_SIZE = 3
+DATASET_SIZE = 20
 
 # initialize an empty dictionary to store the results
 results = {}
@@ -13,7 +16,7 @@ def generate_pr_block(prNum, bks, runs):
         lines.append(f"""filename="test-runs/$1-{prNum}.{i}.csv"\n""")
         lines.append(f"""if [ ! -e "$filename"  ]\n""")
         lines.append("then\n")
-        lines.append(f"    ./runv2.sh {outputfileName} {filename} $2 {bks} 0 1 2 4 8 16 24 >> logs/$1.txt\n")
+        lines.append(f"    ./runv2.sh {outputfileName} {filename} $2 {bks} {' '.join(map(str, threads))} >> logs/$1.txt\n")
         lines.append("fi\n")
         lines.append(f"echo '{prNum}.{i}'\n")
         lines.append("\n")
@@ -33,10 +36,10 @@ def main(outputfile):
     # print the results
     print(results)
     lines = ["#!/bin/bash\n"]
-    for i in range(1, 21):
+    for i in range(1, DATASET_SIZE + 1):
         filename = f'pr' + str(i).zfill(2)
         bks = results[filename]
-        i_lines = generate_pr_block(i, bks, 5)
+        i_lines = generate_pr_block(i, bks, SAMPLE_SIZE)
         lines.extend(i_lines)
         lines.append("\n")
 
