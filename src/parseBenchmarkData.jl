@@ -67,13 +67,13 @@ function parseFile(path::String)
             (pe, pl), (de, dl), pd, dd, pq, dq)
         push!(requests, request)
     end
-    println(length(requests))
+    println("Request size = $(length(requests))")
     return requests, depotPoint, nR, m, Q, max_route_duration
 end
 
 function travel_time(pone::Point, ptwo::Point)
     Float64
-    return (abs(pone.x - ptwo.x) + abs(pone.y - ptwo.y))
+    return sqrt((ptwo.x - pone.x)^2 + (ptwo.y - pone.y)^2)
 end
 
 # reqs, depotPoint, n, m = parseFile("/Users/raghuveernaraharisetti/mscs/dail-a-ride/DARP-Multi-CPU/benchmark-data/chairedistributique/data/darp/tabu/pr01")

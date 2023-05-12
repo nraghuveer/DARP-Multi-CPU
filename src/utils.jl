@@ -28,8 +28,26 @@ mutable struct DARPStat
     time_initSolution::Float64
     time_localSearch::Float64
     time_total::Float64
+    bestOptFnValue::Float64
     version::String
     function DARPStat(file::String, n_size::Int64, version::String)
-        return new(Threads.nthreads(), file, 0, n_size, 0.0, 0.0, 0.0, version)
+        return new(Threads.nthreads(), file, 0, n_size, 0.0, 0.0, 0.0, 0.0, version)
     end
 end
+
+function reduceTabuTenure(cur::Float64, minValue::Float64, delta::Float64)
+    Float64
+    tt = max(minValue, cur - (cur * delta))
+    # tt = floor(Int64, tt)
+    # return Float64(tt)
+    return tt
+end
+
+function increaseTabuTenure(cur::Float64, maxValue::Float64, delta::Float64)
+    Float64
+    tt = min(maxValue, cur + (cur * delta))
+    # tt = ceil(Int64, tt)
+    # return Float64(tt)
+    return tt
+end
+

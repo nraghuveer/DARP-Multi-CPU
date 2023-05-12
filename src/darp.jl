@@ -35,7 +35,22 @@ struct RVals{N}
     RVals{N}(rmap, A, w, B, D, y) where {N} = new(rmap, A, w, B, D, y)
 end
 
-const TabuMemory = Dict{MoveParams,Int64}
+mutable struct VoilationCoefficients
+    LAMBDA
+    ALPHA #q(s)
+    BETA # d(s)
+    GAMMA #w(s)
+    TAU # t(s)
+
+    THETA
+    ZETA
+    function VoilationCoefficients(nR::Int64)
+        return new(0.015, 1.0, 1.0, 1.0, 1.0, 7.5 * log10(nR), 0.51)
+    end
+end
+
+# (i, k)
+const TabuMemory = Dict{Tuple{Int64,Int64},Int64}
 
 struct DARP
     nR::Int64
@@ -58,9 +73,10 @@ struct DARP
 
     function DARP(datafile::String, stats::DARPStat)
         filepath = string("benchmark-data/chairedistributique/data/darp/tabu/", datafile)
+        println("using datafile = $(filepath)")
         requests, depotPoint, nR, nV, Q, T_route = parseFile(filepath)
         start_depot = 0
-        end_depot = 2 * nR + 1
+        end_depot = nR + 1
 
         coords::Dict{Int64,Point} = Dict{Int64,Point}([])
         coords[start_depot] = depotPoint
@@ -100,10 +116,10 @@ struct DARP
 
         vehicleWeights = Weights(fill(1, nV))
         requestWeights = Weights(fill(1, nR))
-        MAX_ROUTE_SIZE = nR * 2
+        MAX_ROUTE_SIZE = nR * 4
 
         return new(nR, nV, T_route, requests, start_depot, end_depot,
-            Q, coords, d, q, tw, standardCost, collect(nR+1:nR+nV),
+            Q, coords, d, q, tw, standardCost, collect(nR+2:nR+2+nV-1), # inclusive
             vehicleWeights, requestWeights,
             MAX_ROUTE_SIZE, stats)
     end
@@ -118,7 +134,7 @@ end
 function travel_time(darp::DARP, one::Int64, two::Int64)
     pone = darp.coords[one]
     ptwo = darp.coords[two]
-    return (abs(pone.x - ptwo.x) + abs(pone.y - ptwo.y))
+    return sqrt((ptwo.x - pone.x)^2 + (ptwo.y - pone.y)^2)
 end
 
 function copyRoute!(src::Route, dest::Route)
@@ -188,10 +204,12 @@ function remove_from_route(::Val{N}, darp::DARP, baseRoute::Route{N}, i::Int64) 
     return newRoute
 end
 
-function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tabuMem::TabuMemory, Tt::Float64,
-    darp::DARP, baseRoutes::Routes{N}, destMoves::MVector{N_SIZE,MoveParams}) where {N,N_SIZE}
-    Int64
-    routes::Dict{Int64, Vector{Int64}} = Dict(k => [] for k in darp.vehicles)
+function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tabuMem::TabuMemory,
+    darp::DARP, baseRoutes::Routes{N}, destMoves::MVector{N_SIZE,MoveParams}, vc::VoilationCoefficients) where {N,N_SIZE}
+    Int64, VoilationCoefficients
+
+    TabuTenure = trunc(Int64, vc.THETA)
+    routes::Dict{Int64,Vector{Int64}} = Dict(k => [] for k in darp.vehicles)
     for k in darp.vehicles
         for v in baseRoutes[k]
             if v == darp.end_depot
@@ -205,13 +223,18 @@ function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tab
     nR = darp.nR
     nV = darp.nV
 
-    vehicles = collect(nR+1:nR+nV)
-    vehicleWeights = Weights(fill(1, nV))
+    vehicles = darp.vehicles
+    vehicleWeights = darp.vehicleWeights
 
     tabuMissCount = 0
     seedRng = MersenneTwister(iterationNum)
     idx = 1
     while idx <= N_SIZE
+
+        if tabuMissCount % (nR * 100) == 0
+            vc = randomize_theta(vc, nR)
+            TabuTenure = trunc(Int64, vc.THETA)
+        end
         k1, k2 = StatsBase.sample(seedRng, vehicles, vehicleWeights, 2, replace=false)
 
         # pick a request from k1
@@ -226,13 +249,15 @@ function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tab
         if len_k2 <= 3
             p1, p2 = 1, 2
         else
-            p1, p2 = StatsBase.sample(seedRng, 2:len_k2-1, Weights(fill(1, len_k2-2)), 2, replace=false, ordered=true)
+            p1, p2 = StatsBase.sample(seedRng, 2:len_k2-1, Weights(fill(1, len_k2 - 2)), 2, replace=false, ordered=true)
         end
 
         param = MoveParams(i, k1, k2, p1, p2)
-        moveLastUsedIn = get(tabuMem, param, - trunc(Int64, Tt))
-        if !(param in curMoves) && (moveLastUsedIn + Tt <= iterationNum)
-            tabuMem[param] = iterationNum
+        tabuMove = (i, k2)
+        moveLastUsedIn = get(tabuMem, param, -TabuTenure)
+
+        if !(param in curMoves) && (moveLastUsedIn + TabuTenure <= iterationNum)
+            tabuMem[tabuMove] = iterationNum
             destMoves[idx] = param
             push!(curMoves, param)
             idx += 1
@@ -240,7 +265,7 @@ function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tab
             tabuMissCount += 1
         end
     end
-    return tabuMissCount
+    return tabuMissCount, vc
 end
 
 function copyVectorRoute!(::Val{N}, darp, srcRoute::Vector{Int64}, destRoute::Route{N}) where {N}
@@ -250,4 +275,39 @@ function copyVectorRoute!(::Val{N}, darp, srcRoute::Vector{Int64}, destRoute::Ro
     return destRoute
 end
 
+function printRoutes(routes::Routes{N}, darp::DARP) where {N}
+    for k in sort(darp.vehicles)
+        route = routes[k]
+        result = Array{Int64}([])
+        for v in route
+            if v == darp.end_depot
+                push!(result, v)
+                break
+            end
+            push!(result, v)
+        end
+        println("$(k) => $(result)")
+    end
+end
 
+
+
+function randomize_coefficients(vc::VoilationCoefficients, nR::Int64)
+    vc.THETA = rand(Uniform(0.0, 7.5 * log10(nR)))
+    vc.LAMBDA = rand(Uniform(0.0, 0.015))
+    vc.ZETA = rand(Uniform(0, 0.5))
+    return vc
+end
+
+function randomize_theta(vc::VoilationCoefficients, nR::Int64)
+    vc.THETA = rand(Uniform(0.0, 7.5 * log10(nR)))
+    return vc
+end
+
+function calc_penalities(vc::VoilationCoefficients)
+    vc.ALPHA = max(0.0, vc.ALPHA / (1 + vc.ZETA))
+    vc.BETA = max(0.0, vc.BETA / (1 + vc.ZETA))
+    vc.GAMMA = max(0.0, vc.GAMMA / (1 + vc.ZETA))
+    vc.TAU = max(0.0, vc.TAU / (1 + vc.ZETA))
+    return vc
+end

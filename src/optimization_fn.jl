@@ -17,7 +17,7 @@ end
 struct OptRoutes
     optRouteDict::Dict{Int64,OptRoute}
     Val::Float64
-    function OptRoutes(darp::DARP, roptVals::Dict{Int64,OptRoute})
+    function OptRoutes(darp::DARP, roptVals::Dict{Int64,OptRoute}, vc::VoilationCoefficients)
         c = 0.0
         q = 0.0
         d = 0.0
@@ -30,18 +30,18 @@ struct OptRoutes
             w += roptVals[k].w
             t += roptVals[k].t
         end
-        Val = (c + q + d + w + t - darp.standardCost) / 1.0
+        Val = (c + (q * vc.ALPHA) + (d * vc.BETA) + (w * vc.GAMMA) + (t * vc.TAU)) / 1.0
         return new(roptVals, Val)
     end
 end
 
-function copyOptRoutes(darp::DARP, optRoutes::OptRoutes)
+function copyOptRoutes(darp::DARP, optRoutes::OptRoutes, vc::VoilationCoefficients)
     OptRoutes
-    return OptRoutes(darp, copy(optRoutes.optRouteDict))
+    return OptRoutes(darp, copy(optRoutes.optRouteDict), vc)
 end
 
-function reCalOptRoutes(darp::DARP, optRoutes::OptRoutes)
-    return OptRoutes(darp, optRoutes.optRouteDict)
+function reCalOptRoutes(darp::DARP, optRoutes::OptRoutes, vc::VoilationCoefficients)
+    return OptRoutes(darp, optRoutes.optRouteDict, vc)
 end
 
 function route_values!(::Val{N}, darp::DARP, route::GenericRoute{N}, to::Union{Nothing,TimerOutput}) where {N}
@@ -79,10 +79,10 @@ function route_values!(::Val{N}, darp::DARP, route::GenericRoute{N}, to::Union{N
     return RVals{N}(rmap, A, w, B, D, y)
 end
 
-function calc_opt_full(valN::Val{N}, darp::DARP, rvalues::Dict{Int64,RVals{N}}, routes::GenericRoutes{N}) where {N}
+function calc_opt_full(valN::Val{N}, darp::DARP, rvalues::Dict{Int64,RVals{N}}, routes::GenericRoutes{N}, vc::VoilationCoefficients) where {N}
     OptRoutes
     optRouteDict = Dict{Int64,OptRoute}(k => calc_opt_for_route(valN, darp, routes[k], rvalues[k]) for k in darp.vehicles)
-    optRoutes = OptRoutes(darp, optRouteDict)
+    optRoutes = OptRoutes(darp, optRouteDict, vc)
     return optRoutes
 end
 
@@ -125,32 +125,32 @@ function calc_opt_for_route(::Val{N}, darp::DARP, route::GenericRoute{N}, rvals:
     return OptRoute(c, q, d, w, t)
 end
 
-function calc_opt_incr(valN::Val{N}, darp::DARP, routes::Routes{N}, move::MoveParams, optRoutes::OptRoutes) where {N}
+function calc_opt_incr(valN::Val{N}, darp::DARP, routes::Routes{N}, move::MoveParams, optRoutes::OptRoutes, vc::VoilationCoefficients) where {N}
     OptRoutes
     routeK1 = routes[move.k1]
     routeK2 = routes[move.k2]
-    newOptRoutes::OptRoutes = copyOptRoutes(darp, optRoutes)
+    newOptRoutes::OptRoutes = copyOptRoutes(darp, optRoutes, vc)
     newRouteK1 = remove_from_route(valN, darp, routeK1, move.i)
     newRouteK2 = insert_to_route(valN, darp, routeK2, move.i, move.p1, move.p2)
     newRvalK1 = route_values!(valN, darp, newRouteK1, nothing)
     newRvalK2 = route_values!(valN, darp, newRouteK2, nothing)
     newOptRoutes.optRouteDict[move.k1] = calc_opt_for_route(valN, darp, newRouteK1, newRvalK1)
     newOptRoutes.optRouteDict[move.k2] = calc_opt_for_route(valN, darp, newRouteK2, newRvalK2)
-    return reCalOptRoutes(darp, newOptRoutes)
+    return reCalOptRoutes(darp, newOptRoutes, vc)
 end
 
-function apply_move(valN::Val{N}, darp::DARP, move::MoveParams, curRoutes::Routes{N}, curRVals::Dict{Int64,RVals{N}}, curOptRoutes::OptRoutes) where {N}
+function apply_move(valN::Val{N}, darp::DARP, move::MoveParams, curRoutes::Routes{N}, curRVals::Dict{Int64,RVals{N}}, curOptRoutes::OptRoutes, vc::VoilationCoefficients) where {N}
     newRoutes = Dict{Int64,Route{N}}(k => copy(curRoutes[k]) for k in darp.vehicles)
     newRoutes[move.k1] = remove_from_route(valN, darp, curRoutes[move.k1], move.i)
     newRoutes[move.k2] = insert_to_route(valN, darp, curRoutes[move.k2], move.i, move.p1, move.p2)
     newRVals = Dict{Int64,RVals{N}}(k => RVals{N}(copy(curRVals[k].rmap), curRVals[k].A, curRVals[k].w, curRVals[k].B, curRVals[k].D, curRVals[k].y) for k in darp.vehicles)
     newRVals[move.k1] = route_values!(valN, darp, newRoutes[move.k1], nothing)
     newRVals[move.k2] = route_values!(valN, darp, newRoutes[move.k2], nothing)
-    newOptRoutes = copyOptRoutes(darp, curOptRoutes)
+    newOptRoutes = copyOptRoutes(darp, curOptRoutes, vc)
     newOptRoutes.optRouteDict[move.k1] = calc_opt_for_route(valN, darp, newRoutes[move.k1], newRVals[move.k1])
     newOptRoutes.optRouteDict[move.k2] = calc_opt_for_route(valN, darp, newRoutes[move.k2], newRVals[move.k2])
     # println("#####################")
     # println(curRoutes[move.k1])
     # println(newRoutes[move.k1])
-    return newRoutes, newRVals, reCalOptRoutes(darp, newOptRoutes)
+    return newRoutes, newRVals, reCalOptRoutes(darp, newOptRoutes, vc)
 end

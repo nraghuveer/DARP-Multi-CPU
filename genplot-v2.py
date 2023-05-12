@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 BASEPATH = "./test-runs"
 PLOTSPATH = "./plots"
 
+TOTAL_DATASETS = 20
+
 # Prfix path
 def addToPlot(runID, datasetID):
     csv_file_paths = []
@@ -13,7 +15,7 @@ def addToPlot(runID, datasetID):
     # Load the CSV files into a list of pandas DataFrames
     dfs = []
     for csv_file_path in csv_file_paths:
-        df = pd.read_csv(csv_file_path, names=['nThreads', 'file', 'total_iterations', 'n_size', 'time_initSolution', 'time_localSearch', 'time_total', 'version'])
+        df = pd.read_csv(csv_file_path, names=['nThreads', 'file', 'total_iterations', 'n_size', 'time_initSolution', 'time_localSearch', 'time_total', 'bestValue', 'version'])
         dfs.append(df)
 
     # Calculate the average time_localSearch for each row across all DataFrames
@@ -39,15 +41,17 @@ def addToPlot(runID, datasetID):
     plt.plot(nThreads, speedups, marker='o', label=f"pr0{datasetID}")
     plt.xlabel('nThreads')
     plt.ylabel('Speedup')
+    nsize = dfs[0].iloc[0].n_size
+    plt.title(f'nsize={nsize} | Speedup vs. nThreads')
 
 def main():
     runID = input("Enter runID: ")
     runID = int(runID)
     plot_file_path = f"{PLOTSPATH}/{runID}.png"
-    for datasetID in range(1, 7):
+    for datasetID in range(1, TOTAL_DATASETS + 1):
         addToPlot(runID, datasetID)
-    plt.legend(loc="upper left")
-    plt.title(f'Speedup vs. nThreads')
+    plt.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
+    plt.tight_layout()
     plt.savefig(plot_file_path)
     print(plot_file_path)
 
