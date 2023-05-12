@@ -312,25 +312,18 @@ function calc_penalities(vc::VoilationCoefficients)
     return vc
 end
 
+
 function performIntraRouteOptimimzation(valN::Val{N}, route::Route{N}, darp::DARP, vc::VoilationCoefficients) where {N}
     # take every index and put it in different index
-    rmap = Dict{Int64,Int64}([])
-    rmap[darp.start_depot] = 1
-    rmap[darp.end_depot] =
-    i = 1
-    for req in route
-        rmap[req] = i
-        i += 1
-        if req == darp.end_depot
-            break
-        end
-    end
-    n = length(route)
-    bestRoute = route
-    rvals = route_values!(valN, darp, bestRoute, nothing)
+    rvals = route_values!(valN, darp, route, nothing)
+    n = rvals.rmap[darp.end_depot]
     optRoute = calc_opt_for_route(valN, darp, route, rvals)
-    bestOptRoutes = OptRoutes(darp, Dict{Int64, OptRoute}([(1, optRoute)]), vc)
-    for i in 1:n
+
+    bestRoute = route
+    bestOptRoutes = OptRoutes(darp, Dict{Int64,OptRoute}([(1, optRoute)]), vc)
+
+    for iIdx in 1:n-1
+        i = route[iIdx]
         if i == darp.start_depot
             continue
         end
@@ -338,27 +331,32 @@ function performIntraRouteOptimimzation(valN::Val{N}, route::Route{N}, darp::DAR
             break
         end
 
-        for j in 1:n
+        for jIdx in 2:n-1
+            j = route[jIdx]
+            if j == darp.end_depot
+                break
+            end
             if abs(i) == abs(j)
                 continue
             end
+
             # put i in place of j and j in place of i
             # if i is pickup node, rmap[-i] > rmap[j]
             if i > 0
-                pickupIndx = rmap[i]
-                dropoffIndex = rmap[-i]
+                pickupIndx = rvals.rmap[i]
+                dropoffIndex = rvals.rmap[-i]
             else
-                pickupIndx = rmap[-i]
-                dropoffIndex = rmap[i]
+                pickupIndx = rvals.rmap[-i]
+                dropoffIndex = rvals.rmap[i]
             end
             if pickupIndx > dropoffIndex
                 continue
             end
             newRoute = copy(route)
-            newRoute[i], newRoute[j] = newRoute[j], newRoute[i]
+            newRoute[iIdx], newRoute[jIdx] = newRoute[jIdx], newRoute[iIdx]
             newRvals = route_values!(valN, darp, newRoute, nothing)
             newOptRoute = calc_opt_for_route(valN, darp, newRoute, newRvals)
-            newOptRoutes = OptRoutes(darp, Dict{Int64, OptRoute}([(1, newOptRoute)]), vc)
+            newOptRoutes = OptRoutes(darp, Dict{Int64,OptRoute}([(1, newOptRoute)]), vc)
             if newOptRoutes.Val < bestOptRoutes.Val
                 bestRoute = newRoute
                 bestOptRoutes = newOptRoutes

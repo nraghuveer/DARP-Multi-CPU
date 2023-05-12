@@ -23,12 +23,12 @@ struct OptRoutes
         d = 0.0
         w = 0.0
         t = 0.0
-        for k in darp.vehicles
-            c += roptVals[k].c
-            q += roptVals[k].q
-            d += roptVals[k].d
-            w += roptVals[k].w
-            t += roptVals[k].t
+        for (k, v) in roptVals
+            c += v.c
+            q += v.q
+            d += v.d
+            w += v.w
+            t += v.t
         end
         Val = (c + (q * vc.ALPHA) + (d * vc.BETA) + (w * vc.GAMMA) + (t * vc.TAU)) / 1.0
         return new(roptVals, Val)
@@ -122,6 +122,7 @@ function calc_opt_for_route(::Val{N}, darp::DARP, route::GenericRoute{N}, rvals:
         # ride time
         t += max(Bi_dropoff - Bi_pickup, 0)
     end
+
     return OptRoute(c, q, d, w, t)
 end
 

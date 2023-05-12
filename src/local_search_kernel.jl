@@ -19,7 +19,7 @@ function search(valN::Val{N}, darp::DARP, bks::Float64, mrt::Int64, N_SIZE::Int,
     println("Using $(vc)")
 
     # Penalized diversification strategy
-    attributeFrequency = Dict{Tuple{Int64, Int64}, Int64}([])
+    attributeFrequency = Dict{Tuple{Int64,Int64},Int64}([])
     tabuMem = TabuMemory()
 
     @timeit to "searchInit" begin
@@ -43,7 +43,22 @@ function search(valN::Val{N}, darp::DARP, bks::Float64, mrt::Int64, N_SIZE::Int,
     while true
         if iterNum % KAPPA == 0
             vc = randomize_coefficients(vc, darp.nR)
-       end
+            beforeVal = bestOptRoutes.Val
+            # perform intra route optimization
+            println(darp.vehicles)
+            # Threads.@threads for vid in darp.vehicles
+            for vid in darp.vehicles
+                optimizedRoutes, optRoutes = performIntraRouteOptimimzation(valN, bestRoutes[vid], darp, vc)
+                bestRoutes[vid] = optimizedRoutes
+                bestOptRoutes.optRouteDict[vid] = optRoutes.optRouteDict[1]
+            end
+            bestOptRoutes = reCalOptRoutes(darp, bestOptRoutes, vc)
+            println("##################")
+            println("Before = $(beforeVal) | After = $(bestOptRoutes.Val)")
+            printRoutes(bestRoutes, darp)
+            println("##################")
+        end
+
         vc = calc_penalities(vc)
         @timeit to "localsearch#$(iterNum)" begin
             @timeit to "randomMove" begin
