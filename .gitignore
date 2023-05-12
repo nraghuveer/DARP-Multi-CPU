@@ -26,3 +26,4 @@ Manifest.toml
 
 test-runs/*
 plots/*
+logs/*

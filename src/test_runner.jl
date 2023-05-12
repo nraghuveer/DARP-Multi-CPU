@@ -33,12 +33,21 @@ function run_tests()
         arg_type = Float64
         required = true
     end
+    @add_arg_table s begin
+        "--mrt"
+        help = "max run time in seconds"
+        arg_type = Int64
+        required = true
+    end
 
     args = parse_args(s)
     all_stats::Array{DARPStat} = []
     stats = DARPStat(args["datafile"], args["nsize"], "2.0")
     darp = DARP(args["datafile"], stats)
-    run(darp, args["nsize"], stats, args["bks"], false)
+    println("====================================================================")
+    datafile = args["datafile"]
+    println("Running Dataset: $(datafile)")
+    run(darp, args["nsize"], stats, args["bks"], args["mrt"], false)
     push!(all_stats, stats)
     CSV.write(args["statsfile"], all_stats, append=true)
 end

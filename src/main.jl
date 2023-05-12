@@ -15,8 +15,7 @@ using Test
 
 const to = TimerOutput()
 
-function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, enableTimerLogs::Bool=true)
-    println("====================================================================")
+function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, mrt::Int64, enableTimerLogs::Bool=true)
     println("Running on $(Threads.nthreads()) threads")
     nR = darp.nR
     if !enableTimerLogs
@@ -27,7 +26,9 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, enableTim
     println("Using nR=$(nR) | nV=$(darp.nV) | Q=$(darp.Q)")
     println("Using N_SIZE=$(N_SIZE)")
     println("Using BKS=$(bks)")
+    println("Using MRT=$(mrt)")
     println("Free Memory $(freeMem())")
+    println("Starndard Cost = $(darp.standardCost)")
     total_iterations = trunc(Int64, 0.9 * nR)
 
     valN = Val(darp.MAX_ROUTE_SIZE)
@@ -49,7 +50,7 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, enableTim
                     merge!(to2, to3, tree_point=["rvals"])
                 end
                 @timeit to2 "calcOptFull" begin
-                    optRoutes = calc_opt_full(valN, darp, rvals, curRoutes)
+                    optRoutes = calc_opt_full(valN, darp, rvals, curRoutes, VoilationCoefficients(darp.nR))
                 end
                 if optRoutes.Val <= bestScore
                     bestScore = optRoutes.Val
@@ -66,22 +67,30 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, enableTim
             end
         end
     end
-    println("Done init route generation")
 
     # convert vector routes to MVectors
     initRoutes::Routes{darp.MAX_ROUTE_SIZE} = Dict(k => copyVectorRoute!(valN, darp, bestRoutes[k], emptyRoute(darp)) for k in darp.vehicles)
+    printRoutes(initRoutes, darp)
+    println("Done init route generation")
+
     search_start = now()
     # build init routes
     @timeit to "search" begin
-        search(Val(darp.MAX_ROUTE_SIZE), darp, bks, N_SIZE, initRoutes, stats, to)
+        routesSolution, optRoutesSolution = search(Val(darp.MAX_ROUTE_SIZE), darp, bks, mrt, N_SIZE, initRoutes, stats, to)
+        println("######################")
+        printRoutes(routesSolution, darp)
+        println("######################")
+        println("Opt Value = $(optRoutesSolution.Val)")
+        stats.bestOptFnValue = optRoutesSolution.Val
     end
     stats.time_localSearch = ts_diff(search_start, now())
     stats.time_total = ts_diff(program_start, now())
     println("Search Time => $(stats.time_localSearch)")
     println("Total Time => $(stats.time_total)")
-    show(to)
-    println("\n")
-    if !enableTimerLogs
+    if enableTimerLogs
+        show(to)
+        println("\n")
+    else
         enable_timer!(to)
     end
     # println("")

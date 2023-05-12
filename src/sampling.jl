@@ -8,16 +8,11 @@ function generate_random_vectorRoutes(darp::DARP, to::TimerOutput)
     Dict{Int64,Array{Int64}}
     nR = darp.nR
     routes = Dict(k => [darp.start_depot] for k in darp.vehicles)
-    # the idea is to generate a route for each vehcilce
-    # and also assign a vechicle to each request
-    # everything should be completely random
-    # so, iterate over the requests and randomly
-    #  select a vehicle and assign
 
-    # TODO: might have be little smart with this weights
-    # for now, make all vehicles equal probability
     @timeit to "sampling" begin
-        randomized_requests = StatsBase.sample(1:nR, darp.requestWeights, nR)
+        # dont replace requests once picked
+        randomized_requests = StatsBase.sample(1:nR, darp.requestWeights, nR, replace=false, ordered=false)
+        # vehicles needs to picked with replace=true
         randomized_ks = StatsBase.sample(darp.vehicles, darp.vehicleWeights, nR, replace=true, ordered=false)
     end
 
