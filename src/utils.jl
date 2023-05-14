@@ -22,21 +22,32 @@ end
 
 mutable struct DARPStat
     nThreads::Int64
-    nR::Int64
-    sd::Int64
-    aos::Int64
-    nV::Int64
-    Q::Int64
-    best_improvement::Float64
-    localSearchIterations::Int64
-    searchMoveSize::Int64
+    file::String
+    total_iterations::Int64
+    n_size::Int64
     time_initSolution::Float64
     time_localSearch::Float64
     time_total::Float64
+    bestOptFnValue::Float64
     version::String
-    # improvements::Array{Float64}
-    # time_localSearchMoves::Array{Float64}
-    function DARPStat(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64)
-        return new(Threads.nthreads(), nR, sd, aos, nV, Q, 0.0, 0, 0, 0.0, 0.0, 0.0)
+    function DARPStat(file::String, n_size::Int64, version::String)
+        return new(Threads.nthreads(), file, 0, n_size, 0.0, 0.0, 0.0, 0.0, version)
     end
 end
+
+function reduceTabuTenure(cur::Float64, minValue::Float64, delta::Float64)
+    Float64
+    tt = max(minValue, cur - (cur * delta))
+    # tt = floor(Int64, tt)
+    # return Float64(tt)
+    return tt
+end
+
+function increaseTabuTenure(cur::Float64, maxValue::Float64, delta::Float64)
+    Float64
+    tt = min(maxValue, cur + (cur * delta))
+    # tt = ceil(Int64, tt)
+    # return Float64(tt)
+    return tt
+end
+

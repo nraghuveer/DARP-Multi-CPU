@@ -1,0 +1,6 @@
+1. Intra-route optimzation
+2. Record and save the history for optVal, tabuMiss, memory
+3. Read from bigger dataset
+
+TO diversify the search, all the non-improved solution are peanlized by a factory proportional to freq of addition
+of its distinguished attributes and of a sscaling factory

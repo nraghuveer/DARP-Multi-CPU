@@ -11,21 +11,25 @@ const PICKUP_OR_DROPOFF_TIME = 8
 const ISPICK_TIME = 9
 
 struct Point
-    x::Int64
-    y::Int64
+    x::Float64
+    y::Float64
     Point(x, y) = new(x, y)
 end
 
+const TW = Tuple{Float64,Float64}
+
 struct Request
-    load::Int64 # number of passengers for this request
     id::Int64
     src::Point
     dst::Point
     direct_ride_time::Float64
     max_ride_time::Float64
-    pickup_time::Float64
-    dropoff_time::Float64
-    is_pickup::Bool
+    pickup_tw::TW
+    dropoff_tw::TW
+    pickup_servicetime::Float64
+    dropoff_servicetime::Float64
+    pickup_load::Int64
+    dropoff_load::Int64
 end
 
 function request_from_dataline(line::AbstractString)

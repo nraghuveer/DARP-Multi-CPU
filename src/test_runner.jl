@@ -4,14 +4,6 @@ using Base
 using CSV
 using ArgParse
 
-# The idea is to run the dataset with different thread configs
-
-# requests = [50, 350, 500, 650, 1000]
-# requests = [1000, 650, 500, 350, 50]
-requests = [500]
-area_of_service = [10]
-service_duration = [2]
-
 function run_tests()
     s = ArgParseSettings()
     @add_arg_table s begin
@@ -21,16 +13,42 @@ function run_tests()
         required = true
         default = Dates.format(now(), "mm-dd-yyyy HH:MM:SS")
     end
-    args = parse_args(s)
-    all_stats::Array{DARPStat} = []
-    for p in Base.product(requests, service_duration, area_of_service)
-        nR, sd, aos = p
-        Q = 3
-        nV = trunc(Int64, (nR / Q)) # have some b;uffer of 4
-        stats = run(nR, sd, aos, nV, Q, false)
-        push!(all_stats, stats)
+    @add_arg_table s begin
+        "--datafile"
+        help = "data file suffix"
+        arg_type = String
+        required = true
+        default = "pr01"
+    end
+    @add_arg_table s begin
+        "--nsize"
+        help = "neighborhood size"
+        arg_type = Int64
+        required = true
+        default = 25
+    end
+    @add_arg_table s begin
+        "--bks"
+        help = "best known score"
+        arg_type = Float64
+        required = true
+    end
+    @add_arg_table s begin
+        "--mrt"
+        help = "max run time in seconds"
+        arg_type = Int64
+        required = true
     end
 
+    args = parse_args(s)
+    all_stats::Array{DARPStat} = []
+    stats = DARPStat(args["datafile"], args["nsize"], "2.0")
+    darp = DARP(args["datafile"], stats)
+    println("====================================================================")
+    datafile = args["datafile"]
+    println("Running Dataset: $(datafile)")
+    run(darp, args["nsize"], stats, args["bks"], args["mrt"], false)
+    push!(all_stats, stats)
     CSV.write(args["statsfile"], all_stats, append=true)
 end
 

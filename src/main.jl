@@ -15,31 +15,26 @@ using Test
 
 const to = TimerOutput()
 
-function run(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64, enableTimerLogs::Bool=true)
-    println("====================================================================")
+function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, mrt::Int64, enableTimerLogs::Bool=true)
     println("Running on $(Threads.nthreads()) threads")
-
+    nR = darp.nR
     if !enableTimerLogs
         disable_timer!(to)
     end
 
-    @timeit to "darpInit" begin
-        stats = DARPStat(nR, sd, aos, nV, Q)
-        stats.version = "memoptimization"
-        darp = DARP(nR, sd, aos, nV, Q, stats)
-    end
-
-    start_dt = now()
-    N_SIZE = trunc(Int64, 0.9 * nR)
+    program_start = now()
+    println("Using nR=$(nR) | nV=$(darp.nV) | Q=$(darp.Q)")
     println("Using N_SIZE=$(N_SIZE)")
+    println("Using BKS=$(bks)")
+    println("Using MRT=$(mrt)")
     println("Free Memory $(freeMem())")
+    println("Starndard Cost = $(darp.standardCost)")
     total_iterations = trunc(Int64, 0.9 * nR)
-    stats.localSearchIterations = total_iterations
-    stats.searchMoveSize = N_SIZE
 
     valN = Val(darp.MAX_ROUTE_SIZE)
     bestScore = Inf
     bestRoutes = Dict(k => [] for k in darp.vehicles)
+    va = VoilationVariables(darp.nR, darp.nV)
 
     @timeit to "init" begin
         Threads.@threads for i in 1:N_SIZE
@@ -56,7 +51,7 @@ function run(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64, enableTimerL
                     merge!(to2, to3, tree_point=["rvals"])
                 end
                 @timeit to2 "calcOptFull" begin
-                    optRoutes = calc_opt_full(valN, darp, rvals, curRoutes)
+                    optRoutes = calc_opt_full(valN, darp, rvals, curRoutes, va)
                 end
                 if optRoutes.Val <= bestScore
                     bestScore = optRoutes.Val
@@ -73,56 +68,31 @@ function run(nR::Int64, sd::Int64, aos::Int64, nV::Int64, Q::Int64, enableTimerL
             end
         end
     end
-    println("Done init route generation")
 
     # convert vector routes to MVectors
     initRoutes::Routes{darp.MAX_ROUTE_SIZE} = Dict(k => copyVectorRoute!(valN, darp, bestRoutes[k], emptyRoute(darp)) for k in darp.vehicles)
+    println("Done init route generation")
+
+    search_start = now()
     # build init routes
-    GC.gc(true)
     @timeit to "search" begin
-        search(Val(darp.MAX_ROUTE_SIZE), darp, total_iterations, N_SIZE, initRoutes, stats, to)
+        routesSolution, optRoutesSolution = search(Val(darp.MAX_ROUTE_SIZE), darp, bks, mrt, N_SIZE, initRoutes, va, stats, to)
+        println("######################")
+        printRoutes(routesSolution, darp)
+        println("######################")
+        println("Opt Value = $(optRoutesSolution.Val)")
+        stats.bestOptFnValue = optRoutesSolution.Val
     end
-    stats.time_total = ts_diff(start_dt, now())
+    stats.time_localSearch = ts_diff(search_start, now())
+    stats.time_total = ts_diff(program_start, now())
+    println("Search Time => $(stats.time_localSearch)")
     println("Total Time => $(stats.time_total)")
-    show(to)
-    if !enableTimerLogs
+    if enableTimerLogs
+        show(to)
+        println("\n")
+    else
         enable_timer!(to)
     end
     # println("")
     return stats
-end
-
-function main()
-    s = ArgParseSettings()
-    @add_arg_table s begin
-        "--nR"
-        help = "number of requests"
-        arg_type = Int64
-        default = 50
-        "--sd"
-        help = "service duration"
-        arg_type = Int64
-        default = 2
-        "--aos"
-        help = "area of service in Kms"
-        arg_type = Int64
-        default = 10
-        "--nV"
-        help = "number of vehicles"
-        arg_type = Int64
-        default = 10
-        "--Q"
-        help = "vehicle capacity"
-        arg_type = Int64
-        default = 5
-        "--statsfile"
-        help = "stats outputfilename"
-        arg_type = String
-        default = Dates.format(now(), "mm-dd-yyyy HH:MM:SS")
-    end
-    args = parse_args(s)
-    stats = run(args["nR"], args["sd"], args["aos"], args["nV"], args["Q"])
-    CSV.write(join([args["statsfile"], "_", string(Threads.nthreads()), ".csv"]),
-        [stats])
-    show(to)
 end

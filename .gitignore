@@ -24,4 +24,8 @@ docs/site/
 Manifest.toml
 .DS_Store
 
-benchmark-data/*
+test-runs/*
+plots/*
+logs/*
+bks.sh
+mrt.sh
