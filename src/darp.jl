@@ -6,6 +6,10 @@ using Test
 using TimerOutputs
 using StatsBase
 
+# (i, k)
+const TabuMemory = Dict{Tuple{Int64,Int64},Int64}
+
+
 struct MoveParams
     i::Int64
     k1::Int64
@@ -35,7 +39,7 @@ struct RVals{N}
     RVals{N}(rmap, A, w, B, D, y) where {N} = new(rmap, A, w, B, D, y)
 end
 
-mutable struct VoilationCoefficients
+mutable struct VoilationVariables
     LAMBDA
     ALPHA #q(s)
     BETA # d(s)
@@ -44,13 +48,20 @@ mutable struct VoilationCoefficients
 
     THETA
     ZETA
-    function VoilationCoefficients(nR::Int64)
-        return new(0.015, 1.0, 1.0, 1.0, 1.0, 7.5 * log10(nR), 0.51)
+    LongerTermTabuMemory::Dict{Tuple{Int64,Int64},Int64}
+    ShortTermTabuMemory::TabuMemory
+
+    sqrt_nm::Float64
+    function VoilationVariables(nR::Int64, nV::Int64)
+        # sqrt of n*m
+        sqrt_nm = sqrt(nR * nV)
+        return new(0.015, 1.0, 1.0, 1.0, 1.0, 7.5 * log10(nR), 0.51, Dict{Tuple{Int64,Int64},Int64}([]), TabuMemory(), sqrt_nm)
     end
 end
 
-# (i, k)
-const TabuMemory = Dict{Tuple{Int64,Int64},Int64}
+function penality(c_of_solution::Float64, p_ik::Tuple{Int64,Int64}, va::VoilationVariables)
+    return va.LAMBDA * c_of_solution * va.sqrt_nm * get(va.LongerTermTabuMemory, p_ik, 1)
+end
 
 struct DARP
     nR::Int64
@@ -204,11 +215,11 @@ function remove_from_route(::Val{N}, darp::DARP, baseRoute::Route{N}, i::Int64) 
     return newRoute
 end
 
-function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tabuMem::TabuMemory,
-    darp::DARP, baseRoutes::Routes{N}, destMoves::MVector{N_SIZE,MoveParams}, vc::VoilationCoefficients) where {N,N_SIZE}
-    Int64, VoilationCoefficients
+function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64,
+    darp::DARP, baseRoutes::Routes{N}, destMoves::MVector{N_SIZE,MoveParams}, va::VoilationVariables) where {N,N_SIZE}
+    Int64, VoilationVariables
 
-    TabuTenure = trunc(Int64, vc.THETA)
+    TabuTenure = trunc(Int64, va.THETA)
     routes::Dict{Int64,Vector{Int64}} = Dict(k => [] for k in darp.vehicles)
     for k in darp.vehicles
         for v in baseRoutes[k]
@@ -232,8 +243,8 @@ function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tab
     while idx <= N_SIZE
 
         if tabuMissCount % (nR * 100) == 0
-            vc = randomize_theta(vc, nR)
-            TabuTenure = trunc(Int64, vc.THETA)
+            va = randomize_theta(va, nR)
+            TabuTenure = trunc(Int64, va.THETA)
         end
         k1, k2 = StatsBase.sample(seedRng, vehicles, vehicleWeights, 2, replace=false)
 
@@ -254,10 +265,10 @@ function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tab
 
         param = MoveParams(i, k1, k2, p1, p2)
         tabuMove = (i, k2)
-        moveLastUsedIn = get(tabuMem, param, -TabuTenure)
+        moveLastUsedIn = get(va.ShortTermTabuMemory, param, -TabuTenure)
 
         if !(param in curMoves) && (moveLastUsedIn + TabuTenure <= iterationNum)
-            tabuMem[tabuMove] = iterationNum
+            va.ShortTermTabuMemory[tabuMove] = iterationNum
             destMoves[idx] = param
             push!(curMoves, param)
             idx += 1
@@ -265,7 +276,7 @@ function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, tab
             tabuMissCount += 1
         end
     end
-    return tabuMissCount, vc
+    return tabuMissCount, va
 end
 
 function copyVectorRoute!(::Val{N}, darp, srcRoute::Vector{Int64}, destRoute::Route{N}) where {N}
@@ -292,34 +303,48 @@ end
 
 
 
-function randomize_coefficients(vc::VoilationCoefficients, nR::Int64)
+function randomize_coefficients(vc::VoilationVariables, nR::Int64)
     vc.THETA = rand(Uniform(0.0, 7.5 * log10(nR)))
     vc.LAMBDA = rand(Uniform(0.0, 0.015))
     vc.ZETA = rand(Uniform(0, 0.5))
     return vc
 end
 
-function randomize_theta(vc::VoilationCoefficients, nR::Int64)
+function randomize_theta(vc::VoilationVariables, nR::Int64)
     vc.THETA = rand(Uniform(0.0, 7.5 * log10(nR)))
     return vc
 end
 
-function calc_penalities(vc::VoilationCoefficients)
-    vc.ALPHA = max(0.0, vc.ALPHA / (1 + vc.ZETA))
-    vc.BETA = max(0.0, vc.BETA / (1 + vc.ZETA))
-    vc.GAMMA = max(0.0, vc.GAMMA / (1 + vc.ZETA))
-    vc.TAU = max(0.0, vc.TAU / (1 + vc.ZETA))
-    return vc
+function decrease_penality_coefficients(va::VoilationVariables)
+    if va.ZETA <= 0
+        return va
+    end
+    va.ALPHA = max(0.0, va.ALPHA / (1 + va.ZETA))
+    va.BETA = max(0.0, va.BETA / (1 + va.ZETA))
+    va.GAMMA = max(0.0, va.GAMMA / (1 + va.ZETA))
+    va.TAU = max(0.0, va.TAU / (1 + va.ZETA))
+    return va
 end
 
+function increase_penality_coefficients(va::VoilationVariables)
+    if va.ZETA <= 0
+        return va
+    end
+    va.ALPHA = max(0.0, va.ALPHA * (1 + va.ZETA))
+    va.BETA = max(0.0, va.BETA * (1 + va.ZETA))
+    va.GAMMA = max(0.0, va.GAMMA * (1 + va.ZETA))
+    va.TAU = max(0.0, va.TAU * (1 + va.ZETA))
+    return va
+end
 
-function performIntraRouteOptimimzation(valN::Val{N}, route::Route{N}, darp::DARP, vc::VoilationCoefficients) where {N}
+function performIntraRouteOptimimzation(valN::Val{N}, route::Route{N}, darp::DARP, vc::VoilationVariables) where {N}
     # take every index and put it in different index
     rvals = route_values!(valN, darp, route, nothing)
     n = rvals.rmap[darp.end_depot]
     optRoute = calc_opt_for_route(valN, darp, route, rvals)
 
     bestRoute = route
+    # even though this is for one route, use static vehicle id = 1
     bestOptRoutes = OptRoutes(darp, Dict{Int64,OptRoute}([(1, optRoute)]), vc)
 
     for iIdx in 1:n-1
@@ -363,5 +388,5 @@ function performIntraRouteOptimimzation(valN::Val{N}, route::Route{N}, darp::DAR
             end
         end
     end
-    return bestRoute, bestOptRoutes
+    return bestRoute
 end

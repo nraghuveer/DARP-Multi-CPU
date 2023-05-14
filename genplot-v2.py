@@ -1,15 +1,16 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-BASEPATH = "./test-runs"
+BASEPATH = "./test-runs/bks"
 PLOTSPATH = "./plots"
 
 TOTAL_DATASETS = 20
+SAMPLE_SIZE = 5
 
 # Prfix path
 def addToPlot(runID, datasetID):
     csv_file_paths = []
-    for i in range(1, 6):
+    for i in range(1, 2):
         csv_file_paths.append(f"{BASEPATH}/{runID}-{datasetID}.{i}.csv")
 
     # Load the CSV files into a list of pandas DataFrames

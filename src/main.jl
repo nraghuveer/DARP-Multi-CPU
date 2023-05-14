@@ -50,7 +50,7 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, mrt::Int6
                     merge!(to2, to3, tree_point=["rvals"])
                 end
                 @timeit to2 "calcOptFull" begin
-                    optRoutes = calc_opt_full(valN, darp, rvals, curRoutes, VoilationCoefficients(darp.nR))
+                    optRoutes = calc_opt_full(valN, darp, rvals, curRoutes, VoilationVariables(darp.nR, darp.nV))
                 end
                 if optRoutes.Val <= bestScore
                     bestScore = optRoutes.Val

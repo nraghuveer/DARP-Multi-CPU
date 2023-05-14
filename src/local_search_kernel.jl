@@ -15,75 +15,86 @@ function search(valN::Val{N}, darp::DARP, bks::Float64, mrt::Int64, N_SIZE::Int,
     useMRTToStop = mrt != 0
     searchStart = now()
 
-    vc = VoilationCoefficients(darp.nR)
-    println("Using $(vc)")
+    va = VoilationVariables(darp.nR, darp.nV)
+    println("Using $(va)")
 
-    # Penalized diversification strategy
-    attributeFrequency = Dict{Tuple{Int64,Int64},Int64}([])
-    tabuMem = TabuMemory()
+    # Initialize current variable
+    scores = zeros(MVector{N_SIZE})
+    curRoutes = initRoutes
+    curRVals::Dict{Int64,RVals{N}} = Dict(k => route_values!(valN, darp, curRoutes[k], nothing) for k in darp.vehicles)
+    curOptRoutes::OptRoutes = calc_opt_full(valN, darp, curRVals, curRoutes, va)
+    curOptValue::Float64 = curOptRoutes.Val
+    moves::MVector{N_SIZE,MoveParams} = zeros(MVector{N_SIZE,MoveParams})
 
-    @timeit to "searchInit" begin
-        scores = zeros(MVector{N_SIZE})
-        curRoutes = initRoutes
-        curRVals::Dict{Int64,RVals{N}} = Dict(k => route_values!(valN, darp, curRoutes[k], nothing) for k in darp.vehicles)
-        curOptRoutes::OptRoutes = calc_opt_full(valN, darp, curRVals, curRoutes, vc)
-        moves::MVector{N_SIZE,MoveParams} = zeros(MVector{N_SIZE,MoveParams})
-    end
-
-
+    # Initialize best variables
     bestRoutes::Routes{N} = initRoutes
     bestOptRoutes::OptRoutes = curOptRoutes
     bestRVals::Dict{Int64,RVals{N}} = curRVals
+    bestOptValue::Float64 = bestOptRoutes.Val
 
-    baseVal = curOptRoutes.Val
-
+    baseVal = bestOptValue
     optValuesLog = Dict{Int64,Float64}([])
 
     iterNum = 1
     while true
         if iterNum % KAPPA == 0
-            vc = randomize_coefficients(vc, darp.nR)
-            beforeVal = bestOptRoutes.Val
-            # perform intra route optimization
-            println(darp.vehicles)
-            # Threads.@threads for vid in darp.vehicles
-            for vid in darp.vehicles
-                optimizedRoutes, optRoutes = performIntraRouteOptimimzation(valN, bestRoutes[vid], darp, vc)
-                bestRoutes[vid] = optimizedRoutes
-                bestOptRoutes.optRouteDict[vid] = optRoutes.optRouteDict[1]
-            end
-            bestOptRoutes = reCalOptRoutes(darp, bestOptRoutes, vc)
-            println("##################")
-            println("Before = $(beforeVal) | After = $(bestOptRoutes.Val)")
-            printRoutes(bestRoutes, darp)
-            println("##################")
+            va = randomize_coefficients(va, darp.nR)
+        else
+            va = decrease_penality_coefficients(va)
         end
 
-        vc = calc_penalities(vc)
+        if iterNum % KAPPA == 0
+            beforeVal = bestOptValue
+            # perform intra route optimization
+            Threads.@threads for vid in darp.vehicles
+                intraOptimizedRoute = performIntraRouteOptimimzation(valN, bestRoutes[vid], darp, va)
+                bestRoutes[vid] = intraOptimizedRoute
+            end
+            # recalculate best values
+            bestRVals = Dict(k => route_values!(valN, darp, bestRoutes[k], nothing) for k in darp.vehicles)
+            bestOptRoutes = calc_opt_full(valN, darp, bestRVals, bestRoutes, va)
+            bestOptValue = bestOptRoutes.Val
+
+            # assign best to cur
+            curRoutes = bestRoutes
+            curOptRoutes = bestOptRoutes
+            curRVals = bestRVals
+            curOptValue = curOptRoutes.Val # no Penality here because no move
+
+            iterNum += 1
+            println("Intra Route => Before = $(beforeVal) | After = $(bestOptRoutes.Val)")
+            if iterNum > mrt
+                println("Stopping Criteria - Max Runtime reached")
+                break
+            else
+                continue
+            end
+        end
+
         @timeit to "localsearch#$(iterNum)" begin
             @timeit to "randomMove" begin
-                tabuMissCount, vc = generate_random_moves(valN, Val(N_SIZE), iterNum, tabuMem, darp, curRoutes, moves, vc)
+                tabuMissCount, vc = generate_random_moves(valN, Val(N_SIZE), iterNum, darp, curRoutes, moves, va)
             end
             @timeit to "localsearch" begin
                 bestTid = local_search(Val(N), Val(N_SIZE), darp, N_SIZE, scores, moves, curRoutes, curOptRoutes, to, vc)
             end
         end
-        # use bestTid to update the cur values
-        # DO we really want to always applY?????
+        # best move among the randomly generated moves
         bestMove = moves[bestTid]
         newRoutes, newRVals, newOptRoutes = apply_move(valN, darp, bestMove, curRoutes, curRVals, curOptRoutes, vc)
+        newOptValue = newOptRoutes.ValueWithPenality(va, (bestMove.i, bestMove.k2))
 
-        # add move to frequency
-        if !haskey(attributeFrequency, (bestMove.i, bestMove.k2))
-            attributeFrequency[(bestMove.i, bestMove.k2)] = 0
-        end
-        attributeFrequency[(bestMove.i, bestMove.k2)] += 1
-
-        if newOptRoutes.Val < bestOptRoutes.Val
+        if newOptValue < bestOptValue
             bestRoutes = newRoutes
             bestRVals = newRVals
             bestOptRoutes = newOptRoutes
-            vc = randomize_coefficients(vc, darp.nR)
+            bestOptValue = newOptValue
+
+            # add it to longmemory that this move is part of solution
+            if !haskey(va.LongerTermTabuMemory, (bestMove.i, bestMove.k2))
+                va.LongerTermTabuMemory[(bestMove.i, bestMove.k2)] = 0
+            end
+            va.LongerTermTabuMemory[(bestMove.i, bestMove.k2)] += 1
         end
 
         if bestOptRoutes.Val < 0
@@ -96,16 +107,17 @@ function search(valN::Val{N}, darp::DARP, bks::Float64, mrt::Int64, N_SIZE::Int,
         optValuesLog[iterNum] = bestOptRoutes.Val
 
         # use the new ones as current and continue
-        curRoutes, curRVals, curOptRoutes = newRoutes, newRVals, newOptRoutes
-        improved = percentage_improved(baseVal, bestOptRoutes.Val)
-        gap = bestOptRoutes.Val - bks
-        println("$(iterNum) | gap=$(gap) | Tt=$(vc.THETA) | tabuMissCount=$(tabuMissCount) | best=$(bestOptRoutes.Val) | cur=$(curOptRoutes.Val)")
+        curRoutes, curRVals, curOptRoutes, curOptValue = newRoutes, newRVals, newOptRoutes, newOptValue
+
+        improved = percentage_improved(baseVal, bestOptValue)
+        gap = bestOptValue - bks
+        println("$(iterNum) | gap=$(gap) | Tt=$(vc.THETA) | tabuMissCount=$(tabuMissCount) | best=$(bestOptValue) | cur=$(curOptValue)")
         if useBKSToStop && gap <= 0
             println("Stopping Criteria => Best Known SOlution reached")
             println("Total Iterations: $(iterNum)")
             stats.total_iterations = iterNum
             break
-        elseif useMRTToStop && ts_diff(searchStart, now()) > mrt
+        elseif useMRTToStop && iterNum > mrt
             println("Stopping Criteria => Max RunTime reached")
             println("Total Iterations: $(iterNum)")
             stats.total_iterations = iterNum
@@ -117,7 +129,7 @@ function search(valN::Val{N}, darp::DARP, bks::Float64, mrt::Int64, N_SIZE::Int,
     return bestRoutes, bestOptRoutes
 end
 
-function local_search(valN::Val{N}, ::Val{NSIZE}, darp::DARP, N_SIZE::Int, scores::MVector{NSIZE}, moves::MVector{NSIZE,MoveParams}, baseRoute::Routes{N}, baseOptRoutes::OptRoutes, to::TimerOutput, vc::VoilationCoefficients) where {N,NSIZE}
+function local_search(valN::Val{N}, ::Val{NSIZE}, darp::DARP, N_SIZE::Int, scores::MVector{NSIZE}, moves::MVector{NSIZE,MoveParams}, baseRoute::Routes{N}, baseOptRoutes::OptRoutes, to::TimerOutput, vc::VoilationVariables) where {N,NSIZE}
     # use each allocated space and do the work.....
     Threads.@threads for tid in 1:N_SIZE
         move = moves[tid]
