@@ -12,7 +12,7 @@ mkdir logs
 mkdir logs/bks
 mkdir logs/mrt
 
-julia -e 'using Pkg; Pkg.add("StatsBase"); Pkg.add("Random"); Pkg.add("CSV"); Pkg.add("ArgParse"); Pkg.add("StaticArrays"); Pkg.add("Distributions")'
+julia -e 'using Pkg; Pkg.add("StatsBase"); Pkg.add("Random"); Pkg.add("CSV"); Pkg.add("ArgParse"); Pkg.add("StaticArrays"); Pkg.add("Distributions"); Pkg.add("TimerOutputs")'
 
 echo "Done......"
 
