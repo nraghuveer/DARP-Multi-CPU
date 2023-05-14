@@ -8,6 +8,7 @@ cd DARP-Multi-CPU
 mkdir test-runs
 mkdir test-runs/bks
 mkdir test-runs/mrt
+mkdir logs
 mkdir logs/bks
 mkdir logs/mrt
 
