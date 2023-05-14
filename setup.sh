@@ -7,7 +7,7 @@ git clone https://github.com/nraghuveer/DARP-Multi-CPU.git
 cd DARP-Multi-CPU
 chmod +x run_tests_adv.sh
 
-julia -e 'using Pkg; Pkg.add("StatsBase"); Pkg.add("Random"); Pkg.add("CSV"); Pkg.add("ArgParse"); Pkg.add("StaticArrays"); Pkg.add("Distribution")'
+julia -e 'using Pkg; Pkg.add("StatsBase"); Pkg.add("Random"); Pkg.add("CSV"); Pkg.add("ArgParse"); Pkg.add("StaticArrays"); Pkg.add("Distributions")'
 
 echo "Done......"
 
