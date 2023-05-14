@@ -1,7 +1,7 @@
 import os
 
 directory_path = './benchmark-data/chairedistributique/data/darp/tabu/'
-threads = [1,2,4,8,16]
+threads = [1,2,4]
 SAMPLE_SIZE = 5
 DATASET_SIZE = 20
 
