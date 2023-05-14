@@ -5,7 +5,11 @@ export PATH="$PATH:/root/julia-1.8.1/bin/"
 git clone https://github.com/nraghuveer/DARP-Multi-CPU.git
 
 cd DARP-Multi-CPU
-chmod +x run_tests_adv.sh
+mkdir test-runs
+mkdir test-runs/bks
+mkdir test-runs/mrt
+mkdir logs/bks
+mkdir logs/mrt
 
 julia -e 'using Pkg; Pkg.add("StatsBase"); Pkg.add("Random"); Pkg.add("CSV"); Pkg.add("ArgParse"); Pkg.add("StaticArrays"); Pkg.add("Distributions")'
 
