@@ -16,34 +16,38 @@ end
 
 struct OptRoutes
     optRouteDict::Dict{Int64,OptRoute}
-    Val::Float64 # this is vaule without penality, use Value() if want to apply with penality
-    ValueWithPenality::Function
-    function OptRoutes(darp::DARP, roptVals::Dict{Int64,OptRoute}, va::VoilationVariables)
+    lastMove::Union{Nothing,Tuple{Int64,Int64}}
+    otherVal::Float64 # other value in the function excpet cost
+    rawCostVal::Float64 # raw cost value (without penality)
+    costPenality::Float64 # penality factor
+    Val::Float64 # final optimzation function value
+
+    function OptRoutes(optRouteDict::Dict{Int64,OptRoute}, va::VoilationVariables, move::Union{Nothing,Tuple{Int64,Int64}}, moveIncludedInLongMemory::Bool=true)
         c = 0.0
         q = 0.0
         d = 0.0
         w = 0.0
         t = 0.0
-        for (k, v) in roptVals
+        for (k, v) in optRouteDict
             c += v.c
             q += v.q
             d += v.d
             w += v.w
             t += v.t
         end
-        Val = (c + (q * va.ALPHA) + (d * va.BETA) + (w * va.GAMMA) + (t * va.TAU)) / 1.0
-        return new(roptVals, Val, (va::VoilationVariables, moveUsed::Tuple{Int64,Int64}) -> Val + penality(c, moveUsed, va))
+        otherVal = ((q * va.ALPHA) + (d * va.BETA) + (w * va.GAMMA) + (t * va.TAU))
+        rawCostVal = c
+        costPenality = 1.0
+        if !isnothing(move)
+            freqOfMoveUsed = get(va.LongerTermTabuMemory, move, 1)
+            if !moveIncludedInLongMemory # sometimes, when we are incrementally calculating things, we dont include it to avoid unnecessary copies
+                freqOfMoveUsed = get(va.LongerTermTabuMemory, move, 0) + 1
+            end
+            costPenality = va.LAMBDA * va.sqrt_nm * freqOfMoveUsed
+        end
+        Val = (costPenality * rawCostVal) + otherVal
+        return new(optRouteDict, move, otherVal, rawCostVal, costPenality, Val)
     end
-end
-
-
-function copyOptRoutes(darp::DARP, optRoutes::OptRoutes, vc::VoilationVariables)
-    OptRoutes
-    return OptRoutes(darp, copy(optRoutes.optRouteDict), vc)
-end
-
-function reCalOptRoutes(darp::DARP, optRoutes::OptRoutes, vc::VoilationVariables)
-    return OptRoutes(darp, optRoutes.optRouteDict, vc)
 end
 
 function route_values!(::Val{N}, darp::DARP, route::GenericRoute{N}, to::Union{Nothing,TimerOutput}) where {N}
@@ -84,9 +88,10 @@ end
 function calc_opt_full(valN::Val{N}, darp::DARP, rvalues::Dict{Int64,RVals{N}}, routes::GenericRoutes{N}, vc::VoilationVariables) where {N}
     OptRoutes
     optRouteDict = Dict{Int64,OptRoute}(k => calc_opt_for_route(valN, darp, routes[k], rvalues[k]) for k in darp.vehicles)
-    optRoutes = OptRoutes(darp, optRouteDict, vc)
+    optRoutes = OptRoutes(optRouteDict, vc, nothing, false)
     return optRoutes
 end
+
 
 function calc_opt_for_route(::Val{N}, darp::DARP, route::GenericRoute{N}, rvals::RVals{N}) where {N}
     OptRoute
@@ -128,32 +133,98 @@ function calc_opt_for_route(::Val{N}, darp::DARP, route::GenericRoute{N}, rvals:
     return OptRoute(c, q, d, w, t)
 end
 
-function calc_opt_incr(valN::Val{N}, darp::DARP, routes::Routes{N}, move::MoveParams, optRoutes::OptRoutes, vc::VoilationVariables) where {N}
+function calc_opt_incr(valN::Val{N}, darp::DARP, routes::Routes{N}, move::MoveParams, optRoutes::OptRoutes, va::VoilationVariables) where {N}
     OptRoutes
     routeK1 = routes[move.k1]
     routeK2 = routes[move.k2]
-    newOptRoutes::OptRoutes = copyOptRoutes(darp, optRoutes, vc)
+    # create a copy since we will modify this
+    optRouteDict = copy(optRoutes.optRouteDict)
+
     newRouteK1 = remove_from_route(valN, darp, routeK1, move.i)
     newRouteK2 = insert_to_route(valN, darp, routeK2, move.i, move.p1, move.p2)
     newRvalK1 = route_values!(valN, darp, newRouteK1, nothing)
     newRvalK2 = route_values!(valN, darp, newRouteK2, nothing)
-    newOptRoutes.optRouteDict[move.k1] = calc_opt_for_route(valN, darp, newRouteK1, newRvalK1)
-    newOptRoutes.optRouteDict[move.k2] = calc_opt_for_route(valN, darp, newRouteK2, newRvalK2)
-    return reCalOptRoutes(darp, newOptRoutes, vc)
+    optRouteDict[move.k1] = calc_opt_for_route(valN, darp, newRouteK1, newRvalK1)
+    optRouteDict[move.k2] = calc_opt_for_route(valN, darp, newRouteK2, newRvalK2)
+    # make a shallow copy this time
+    return OptRoutes(optRouteDict, va, (move.i, move.k2), false) # move is not included yet in long memory
 end
 
-function apply_move(valN::Val{N}, darp::DARP, move::MoveParams, curRoutes::Routes{N}, curRVals::Dict{Int64,RVals{N}}, curOptRoutes::OptRoutes, vc::VoilationVariables) where {N}
+# except move to already added to longterm memory
+function apply_move(valN::Val{N}, darp::DARP, move::MoveParams, curRoutes::Routes{N}, curRVals::Dict{Int64,RVals{N}}, curOptRoutes::OptRoutes, va::VoilationVariables) where {N}
     newRoutes = Dict{Int64,Route{N}}(k => copy(curRoutes[k]) for k in darp.vehicles)
     newRoutes[move.k1] = remove_from_route(valN, darp, curRoutes[move.k1], move.i)
     newRoutes[move.k2] = insert_to_route(valN, darp, curRoutes[move.k2], move.i, move.p1, move.p2)
+
+    # make a copy since will modify this
     newRVals = Dict{Int64,RVals{N}}(k => RVals{N}(copy(curRVals[k].rmap), curRVals[k].A, curRVals[k].w, curRVals[k].B, curRVals[k].D, curRVals[k].y) for k in darp.vehicles)
     newRVals[move.k1] = route_values!(valN, darp, newRoutes[move.k1], nothing)
     newRVals[move.k2] = route_values!(valN, darp, newRoutes[move.k2], nothing)
-    newOptRoutes = copyOptRoutes(darp, curOptRoutes, vc)
-    newOptRoutes.optRouteDict[move.k1] = calc_opt_for_route(valN, darp, newRoutes[move.k1], newRVals[move.k1])
-    newOptRoutes.optRouteDict[move.k2] = calc_opt_for_route(valN, darp, newRoutes[move.k2], newRVals[move.k2])
-    # println("#####################")
-    # println(curRoutes[move.k1])
-    # println(newRoutes[move.k1])
-    return newRoutes, newRVals, reCalOptRoutes(darp, newOptRoutes, vc)
+
+    optRouteDict = copy(curOptRoutes.optRouteDict)
+    optRouteDict[move.k1] = calc_opt_for_route(valN, darp, newRoutes[move.k1], newRVals[move.k1])
+    optRouteDict[move.k2] = calc_opt_for_route(valN, darp, newRoutes[move.k2], newRVals[move.k2])
+    return newRoutes, newRVals, OptRoutes(optRouteDict, va, (move.i, move.k2), true)
 end
+
+function performIntraRouteOptimimzation(valN::Val{N}, vID::Int64, curRoute::Route{N}, curOptRoutes::OptRoutes,
+    darp::DARP, va::VoilationVariables) where {N}
+
+    # take every index and put it in different index
+    rvals = route_values!(valN, darp, curRoute, nothing)
+    n = rvals.rmap[darp.end_depot]
+    optRoute = calc_opt_for_route(valN, darp, curRoute, rvals)
+
+    bestRoute = curRoute
+    bestOptRoutes = curOptRoutes
+    curOptRouteDict = copy(bestOptRoutes.optRouteDict)
+
+    # goal is to get a value better than this
+    bestOptVal = bestOptRoutes.Val
+
+    for iIdx in 1:n-1
+        i = curRoute[iIdx]
+        if i == darp.start_depot
+            continue
+        end
+        if i == darp.end_depot
+            break
+        end
+
+        for jIdx in 2:n-1
+            j = curRoute[jIdx]
+            if j == darp.end_depot
+                break
+            end
+            if abs(i) == abs(j)
+                continue
+            end
+
+            # put i in place of j and j in place of i
+            # if i is pickup node, rmap[-i] > rmap[j]
+            if i > 0
+                pickupIndx = rvals.rmap[i]
+                dropoffIndex = rvals.rmap[-i]
+            else
+                pickupIndx = rvals.rmap[-i]
+                dropoffIndex = rvals.rmap[i]
+            end
+            if pickupIndx > dropoffIndex
+                continue
+            end
+            newRoute = copy(curRoute)
+            newRoute[iIdx], newRoute[jIdx] = newRoute[jIdx], newRoute[iIdx]
+            newRvals = route_values!(valN, darp, newRoute, nothing)
+            curOptRouteDict[vID] = calc_opt_for_route(valN, darp, newRoute, newRvals)
+            newOptRoutes = OptRoutes(curOptRouteDict, va, bestOptRoutes.lastMove, true)
+
+            if newOptRoutes.Val < bestOptRoutes.Val
+                bestRoute = newRoute
+                bestOptRoutes = newOptRoutes
+            end
+        end
+    end
+
+    return bestRoute
+end
+

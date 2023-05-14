@@ -40,27 +40,23 @@ struct RVals{N}
 end
 
 mutable struct VoilationVariables
-    LAMBDA
-    ALPHA #q(s)
-    BETA # d(s)
-    GAMMA #w(s)
-    TAU # t(s)
+    LAMBDA::Float64
+    ALPHA::Float64 #q(s)
+    BETA::Float64 # d(s)
+    GAMMA::Float64 #w(s)
+    TAU::Float64 # t(s)
 
-    THETA
-    ZETA
+    THETA::Float64
+    ZETA::Float64
     LongerTermTabuMemory::Dict{Tuple{Int64,Int64},Int64}
     ShortTermTabuMemory::TabuMemory
-
     sqrt_nm::Float64
+
     function VoilationVariables(nR::Int64, nV::Int64)
         # sqrt of n*m
         sqrt_nm = sqrt(nR * nV)
         return new(0.015, 1.0, 1.0, 1.0, 1.0, 7.5 * log10(nR), 0.51, Dict{Tuple{Int64,Int64},Int64}([]), TabuMemory(), sqrt_nm)
     end
-end
-
-function penality(c_of_solution::Float64, p_ik::Tuple{Int64,Int64}, va::VoilationVariables)
-    return va.LAMBDA * c_of_solution * va.sqrt_nm * get(va.LongerTermTabuMemory, p_ik, 1)
 end
 
 struct DARP
@@ -335,58 +331,4 @@ function increase_penality_coefficients(va::VoilationVariables)
     va.GAMMA = max(0.0, va.GAMMA * (1 + va.ZETA))
     va.TAU = max(0.0, va.TAU * (1 + va.ZETA))
     return va
-end
-
-function performIntraRouteOptimimzation(valN::Val{N}, route::Route{N}, darp::DARP, vc::VoilationVariables) where {N}
-    # take every index and put it in different index
-    rvals = route_values!(valN, darp, route, nothing)
-    n = rvals.rmap[darp.end_depot]
-    optRoute = calc_opt_for_route(valN, darp, route, rvals)
-
-    bestRoute = route
-    # even though this is for one route, use static vehicle id = 1
-    bestOptRoutes = OptRoutes(darp, Dict{Int64,OptRoute}([(1, optRoute)]), vc)
-
-    for iIdx in 1:n-1
-        i = route[iIdx]
-        if i == darp.start_depot
-            continue
-        end
-        if i == darp.end_depot
-            break
-        end
-
-        for jIdx in 2:n-1
-            j = route[jIdx]
-            if j == darp.end_depot
-                break
-            end
-            if abs(i) == abs(j)
-                continue
-            end
-
-            # put i in place of j and j in place of i
-            # if i is pickup node, rmap[-i] > rmap[j]
-            if i > 0
-                pickupIndx = rvals.rmap[i]
-                dropoffIndex = rvals.rmap[-i]
-            else
-                pickupIndx = rvals.rmap[-i]
-                dropoffIndex = rvals.rmap[i]
-            end
-            if pickupIndx > dropoffIndex
-                continue
-            end
-            newRoute = copy(route)
-            newRoute[iIdx], newRoute[jIdx] = newRoute[jIdx], newRoute[iIdx]
-            newRvals = route_values!(valN, darp, newRoute, nothing)
-            newOptRoute = calc_opt_for_route(valN, darp, newRoute, newRvals)
-            newOptRoutes = OptRoutes(darp, Dict{Int64,OptRoute}([(1, newOptRoute)]), vc)
-            if newOptRoutes.Val < bestOptRoutes.Val
-                bestRoute = newRoute
-                bestOptRoutes = newOptRoutes
-            end
-        end
-    end
-    return bestRoute
 end

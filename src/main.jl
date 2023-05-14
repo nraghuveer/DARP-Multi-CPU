@@ -34,6 +34,7 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, mrt::Int6
     valN = Val(darp.MAX_ROUTE_SIZE)
     bestScore = Inf
     bestRoutes = Dict(k => [] for k in darp.vehicles)
+    va = VoilationVariables(darp.nR, darp.nV)
 
     @timeit to "init" begin
         Threads.@threads for i in 1:N_SIZE
@@ -50,7 +51,7 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, mrt::Int6
                     merge!(to2, to3, tree_point=["rvals"])
                 end
                 @timeit to2 "calcOptFull" begin
-                    optRoutes = calc_opt_full(valN, darp, rvals, curRoutes, VoilationVariables(darp.nR, darp.nV))
+                    optRoutes = calc_opt_full(valN, darp, rvals, curRoutes, va)
                 end
                 if optRoutes.Val <= bestScore
                     bestScore = optRoutes.Val
@@ -70,13 +71,12 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, mrt::Int6
 
     # convert vector routes to MVectors
     initRoutes::Routes{darp.MAX_ROUTE_SIZE} = Dict(k => copyVectorRoute!(valN, darp, bestRoutes[k], emptyRoute(darp)) for k in darp.vehicles)
-    printRoutes(initRoutes, darp)
     println("Done init route generation")
 
     search_start = now()
     # build init routes
     @timeit to "search" begin
-        routesSolution, optRoutesSolution = search(Val(darp.MAX_ROUTE_SIZE), darp, bks, mrt, N_SIZE, initRoutes, stats, to)
+        routesSolution, optRoutesSolution = search(Val(darp.MAX_ROUTE_SIZE), darp, bks, mrt, N_SIZE, initRoutes, va, stats, to)
         println("######################")
         printRoutes(routesSolution, darp)
         println("######################")
