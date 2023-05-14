@@ -27,3 +27,5 @@ Manifest.toml
 test-runs/*
 plots/*
 logs/*
+bks.sh
+mrt.sh
