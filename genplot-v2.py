@@ -47,7 +47,6 @@ def addToPlot(runID, datasetID):
 
 def main():
     runID = input("Enter runID: ")
-    runID = int(runID)
     filename = input("Output filename: ")
     plot_file_path = f"{PLOTSPATH}/{filename}.png"
 

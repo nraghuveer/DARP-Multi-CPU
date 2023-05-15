@@ -115,8 +115,21 @@ struct DARP
             q[req.id] = req.pickup_load
             q[-req.id] = -req.dropoff_load
 
-            tw[req.id] = req.pickup_tw
-            tw[-req.id] = req.dropoff_tw
+            # tighten time windows?
+            ei_pickup_old, li_pickup_old = req.pickup_tw
+            ei_drop_old, li_drop_old = req.dropoff_tw
+
+            L = travel_time(req.src, req.dst)
+            ei_pickup_new = max(ei_pickup_old,
+                ei_drop_old - d[-req.id] - L)
+            li_pickup_new = min(li_pickup_old, li_drop_old - d[req.id])
+
+            ei_dropoff_new = max(ei_drop_old, ei_pickup_old + d[req.id])
+            li_dropoff_new = min(li_drop_old, li_pickup_old + d[req.id] + L)
+
+            li_pickup_new = 0
+            tw[req.id] = (ei_pickup_new, li_pickup_new)
+            tw[-req.id] = (ei_dropoff_new, li_dropoff_new)
 
             standardCost += travel_time(req.src, req.dst)
         end
