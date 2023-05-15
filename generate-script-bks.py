@@ -2,8 +2,6 @@ import os
 from typing import Dict
 
 directory_path = './benchmark-data/chairedistributique/data/darp/tabu/'
-SAMPLE_SIZE = 5
-DATASET_SIZE = 20
 
 # initialize an empty dictionary to store the results
 results: Dict[int, int] = dict()
@@ -23,7 +21,7 @@ def generate_pr_block(prNum, bks, runs, threads):
         # lines.append(f"echo '{prNum}.{i}'\n")
     return lines
 
-def main(outputfile, threads):
+def main(outputfile, threads, sample_size, datasets_size):
     # iterate over the files in the directory
     for filename in os.listdir(directory_path):
         if filename.endswith('.res'):
@@ -36,10 +34,10 @@ def main(outputfile, threads):
     # print the results
     print(results)
     lines = ["#!/bin/bash\n"]
-    for i in range(DATASET_SIZE, 0, -1):
+    for i in range(datasets_size, 0, -1):
         filename = f'pr' + str(i).zfill(2)
         bks = results[filename]
-        i_lines = generate_pr_block(i, bks, SAMPLE_SIZE, threads)
+        i_lines = generate_pr_block(i, bks, sample_size, threads)
         lines.extend(i_lines)
         lines.append("\n")
 
@@ -53,6 +51,10 @@ outputfile = outputfile + '.sh'
 threadsRaw = input("Thread Config (ex: 1 2 4 6 8): ")
 threadsStr = threadsRaw.split(" ")
 threads = map(int, threadsStr)
-main(outputfile, threads)
+sample_size_str = input("Sample Size: ")
+sample_size = int(sample_size_str)
+datasize_str = input("# DataSets: ")
+datasets = int(datasize_str)
+main(outputfile, threads, sample_size, datasets)
 
 
