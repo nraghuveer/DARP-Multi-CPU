@@ -14,5 +14,8 @@ mkdir logs/mrt
 
 julia -e 'using Pkg; Pkg.add("StatsBase"); Pkg.add("Random"); Pkg.add("CSV"); Pkg.add("ArgParse"); Pkg.add("StaticArrays"); Pkg.add("Distributions"); Pkg.add("TimerOutputs")'
 
+sudo apt update
+sudo apt install python-pandas
+
 echo "Done......"
 
