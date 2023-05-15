@@ -1,14 +1,14 @@
 import os
+from typing import Dict
 
 directory_path = './benchmark-data/chairedistributique/data/darp/tabu/'
-threads = [1,2,4]
 SAMPLE_SIZE = 5
 DATASET_SIZE = 20
 
 # initialize an empty dictionary to store the results
-results = {}
+results: Dict[int, int] = dict()
 
-def generate_pr_block(prNum, bks, runs):
+def generate_pr_block(prNum, bks, runs, threads):
     filename = f'pr' + str(prNum).zfill(2)
     lines = []
     for i in range(1, runs+1):
@@ -23,7 +23,7 @@ def generate_pr_block(prNum, bks, runs):
         # lines.append(f"echo '{prNum}.{i}'\n")
     return lines
 
-def main(outputfile):
+def main(outputfile, threads):
     # iterate over the files in the directory
     for filename in os.listdir(directory_path):
         if filename.endswith('.res'):
@@ -39,7 +39,7 @@ def main(outputfile):
     for i in range(DATASET_SIZE, 0, -1):
         filename = f'pr' + str(i).zfill(2)
         bks = results[filename]
-        i_lines = generate_pr_block(i, bks, SAMPLE_SIZE)
+        i_lines = generate_pr_block(i, bks, SAMPLE_SIZE, threads)
         lines.extend(i_lines)
         lines.append("\n")
 
@@ -50,6 +50,9 @@ def main(outputfile):
 
 outputfile = input("Output filename: ")
 outputfile = outputfile + '.sh'
-main(outputfile)
+threadsRaw = input("Thread Config (ex: 1 2 4 6 8): ")
+threadsStr = threadsRaw.split(" ")
+threads = map(int, threadsStr)
+main(outputfile, threads)
 
 
