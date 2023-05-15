@@ -8,7 +8,8 @@ import TimerOutputs
 include("darp.jl")
 include("utils.jl")
 const Int = Int64
-KAPPA = 10 # iterations after which intra-route optimzation is performed
+KAPPA = 15 # iterations after which intra-route optimzation is performed
+INTRA_ROUTE_KAPPA = 15
 
 function search(valN::Val{N}, darp::DARP, bks::Float64, mrt::Int64, N_SIZE::Int, initRoutes::Routes, va::VoilationVariables, stats::DARPStat, to::TimerOutput) where {N}
     useBKSToStop = bks != 0
