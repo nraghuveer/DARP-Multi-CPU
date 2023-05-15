@@ -1,11 +1,8 @@
 import os
 
 directory_path = './benchmark-data/chairedistributique/data/darp/tabu/'
-threads = [1,2,4,8,16]
-SAMPLE_SIZE = 1
-DATASET_SIZE = 20
 
-def generate_pr_block(prNum, mrt, runs):
+def generate_pr_block(prNum, mrt, runs, threads):
     filename = f'pr' + str(prNum).zfill(2)
     lines = []
     for i in range(1, runs+1):
@@ -13,19 +10,19 @@ def generate_pr_block(prNum, mrt, runs):
         lines.append(f"""filename="test-runs/mrt/$1-{prNum}.{i}.csv"\n""")
         lines.append(f"""if [ ! -e "$filename"  ]\n""")
         lines.append("then\n")
-        lines.append(f"    ./runv2.sh {outputfileName} {filename} $2 0 {mrt} {' '.join(map(str, threads))} >> logs/$1.txt\n")
+        lines.append(f"    ./runv2.sh {outputfileName} {filename} $2 0 {mrt} {threads} >> logs/mrt/$1.txt\n")
         lines.append("fi\n")
         lines.append(f"echo '{prNum}.{i}'\n")
         lines.append("\n")
         # lines.append(f"echo '{prNum}.{i}'\n")
     return lines
 
-def main(outputfile, mrt):
-    # print the results
+def main(outputfile, threads, sample_size, datasets_size, mrt):
+
     lines = ["#!/bin/bash\n"]
-    for i in range(1, DATASET_SIZE + 1):
+    for i in range(datasets_size, 0, -1):
         filename = f'pr' + str(i).zfill(2)
-        i_lines = generate_pr_block(i, mrt, SAMPLE_SIZE)
+        i_lines = generate_pr_block(i, mrt, sample_size, threads)
         lines.extend(i_lines)
         lines.append("\n")
 
@@ -35,9 +32,13 @@ def main(outputfile, mrt):
     print('done')
 
 outputfile = input("Output filename: ")
-mrt = input("Max Runtime in seconds: ")
 outputfile = outputfile + '.sh'
-mrt = int(mrt)
-main(outputfile, mrt)
+threads = input("Thread config: ")
+sample_size_str = input("Sample Size: ")
+sample_size = int(sample_size_str)
+datasize_str = input("# DataSets: ")
+datasets = int(datasize_str)
+mrt = input("Max RunTime: ")
+main(outputfile, threads, sample_size, datasets, int(mrt))
 
 

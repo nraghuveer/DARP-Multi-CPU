@@ -48,13 +48,15 @@ def addToPlot(runID, datasetID):
 def main():
     runID = input("Enter runID: ")
     runID = int(runID)
-    plot_file_path = f"{PLOTSPATH}/{runID}.png"
+    filename = input("Output filename: ")
+    plot_file_path = f"{PLOTSPATH}/{filename}.png"
+
     for datasetID in range(1, TOTAL_DATASETS + 1):
         addToPlot(runID, datasetID)
     plt.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
     plt.tight_layout()
     plt.savefig(plot_file_path)
-    print(plot_file_path)
+    print(f"File saved in {plot_file_path}")
 
 if __name__ == "__main__":
     main()
