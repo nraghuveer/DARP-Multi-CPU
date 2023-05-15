@@ -14,7 +14,7 @@ def generate_pr_block(prNum, bks, runs, threads):
         lines.append(f"""filename="test-runs/bks/$1-{prNum}.{i}.csv"\n""")
         lines.append(f"""if [ ! -e "$filename"  ]\n""")
         lines.append("then\n")
-        lines.append(f"    ./runv2.sh {outputfileName} {filename} $2 {bks} 0 {' '.join(map(str, threads))} >> logs/bks/$1.txt\n")
+        lines.append(f"    ./runv2.sh {outputfileName} {filename} $2 {bks} 0 {threads} >> logs/bks/$1.txt\n")
         lines.append("fi\n")
         lines.append(f"echo '{prNum}.{i}'\n")
         lines.append("\n")
@@ -48,9 +48,7 @@ def main(outputfile, threads, sample_size, datasets_size):
 
 outputfile = input("Output filename: ")
 outputfile = outputfile + '.sh'
-threadsRaw = input("Thread Config (ex: 1 2 4 6 8): ")
-threadsStr = threadsRaw.split(" ")
-threads = map(int, threadsStr)
+threads = input("Thread Config (ex: 1 2 4 6 8): ")
 sample_size_str = input("Sample Size: ")
 sample_size = int(sample_size_str)
 datasize_str = input("# DataSets: ")
