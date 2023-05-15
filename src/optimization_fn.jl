@@ -21,6 +21,44 @@ struct OptRoutes
     rawCostVal::Float64 # raw cost value (without penality)
     costPenality::Float64 # penality factor
     Val::Float64 # final optimzation function value
+    moveIncludedInLongMemory::Bool
+
+    function OptRoutes(existing::OptRoutes, vID::Int64, optRoute::OptRoute, va::VoilationVariables)
+        optRouteDict = copy(existing.optRouteDict)
+        c = 0.0
+        q = 0.0
+        d = 0.0
+        w = 0.0
+        t = 0.0
+        for (k, v) in optRouteDict
+            if k == vID
+                v = optRoute
+            end
+            c += v.c
+            q += v.q
+            d += v.d
+            w += v.w
+            t += v.t
+        end
+
+        move = existing.lastMove
+        moveIncludedInLongMemory = existing.moveIncludedInLongMemory
+
+        otherVal = ((q * va.ALPHA) + (d * va.BETA) + (w * va.GAMMA) + (t * va.TAU))
+        rawCostVal = c
+        costPenality = 1.0
+        if !isnothing(move)
+            freqOfMoveUsed = get(va.LongerTermTabuMemory, move, 1)
+            if !moveIncludedInLongMemory # sometimes, when we are incrementally calculating things, we dont include it to avoid unnecessary copies
+                freqOfMoveUsed = get(va.LongerTermTabuMemory, move, 0) + 1
+            end
+            costPenality = va.LAMBDA * va.sqrt_nm * freqOfMoveUsed
+        end
+        # Val = (costPenality * rawCostVal) + otherVal
+        Val = rawCostVal + otherVal
+        return new(optRouteDict, move, otherVal, rawCostVal, costPenality, Val, moveIncludedInLongMemory)
+
+    end
 
     function OptRoutes(optRouteDict::Dict{Int64,OptRoute}, va::VoilationVariables, move::Union{Nothing,Tuple{Int64,Int64}}, moveIncludedInLongMemory::Bool=true)
         c = 0.0
@@ -45,8 +83,9 @@ struct OptRoutes
             end
             costPenality = va.LAMBDA * va.sqrt_nm * freqOfMoveUsed
         end
-        Val = (costPenality * rawCostVal) + otherVal
-        return new(optRouteDict, move, otherVal, rawCostVal, costPenality, Val)
+        # Val = (costPenality * rawCostVal) + otherVal
+        Val = rawCostVal + otherVal
+        return new(optRouteDict, move, otherVal, rawCostVal, costPenality, Val, moveIncludedInLongMemory)
     end
 end
 
@@ -167,8 +206,7 @@ function apply_move(valN::Val{N}, darp::DARP, move::MoveParams, curRoutes::Route
     return newRoutes, newRVals, OptRoutes(optRouteDict, va, (move.i, move.k2), true)
 end
 
-function performIntraRouteOptimimzation(valN::Val{N}, vID::Int64, curRoute::Route{N}, curOptRoutes::OptRoutes,
-    darp::DARP, va::VoilationVariables) where {N}
+function performIntraRouteOptimimzation(valN::Val{N}, vID::Int64, curRoute::Route{N}, curOptRoutes::OptRoutes, darp::DARP, va::VoilationVariables) where {N}
 
     # take every index and put it in different index
     rvals = route_values!(valN, darp, curRoute, nothing)
@@ -177,7 +215,6 @@ function performIntraRouteOptimimzation(valN::Val{N}, vID::Int64, curRoute::Rout
 
     bestRoute = curRoute
     bestOptRoutes = curOptRoutes
-    curOptRouteDict = copy(bestOptRoutes.optRouteDict)
 
     # goal is to get a value better than this
     bestOptVal = bestOptRoutes.Val
@@ -215,8 +252,10 @@ function performIntraRouteOptimimzation(valN::Val{N}, vID::Int64, curRoute::Rout
             newRoute = copy(curRoute)
             newRoute[iIdx], newRoute[jIdx] = newRoute[jIdx], newRoute[iIdx]
             newRvals = route_values!(valN, darp, newRoute, nothing)
-            curOptRouteDict[vID] = calc_opt_for_route(valN, darp, newRoute, newRvals)
-            newOptRoutes = OptRoutes(curOptRouteDict, va, bestOptRoutes.lastMove, true)
+            optRoute = calc_opt_for_route(valN, darp, newRoute, newRvals)
+
+            # dropin replace and check if value is improving
+            newOptRoutes = OptRoutes(curOptRoutes, vID, optRoute, va)
 
             if newOptRoutes.Val < bestOptRoutes.Val
                 bestRoute = newRoute

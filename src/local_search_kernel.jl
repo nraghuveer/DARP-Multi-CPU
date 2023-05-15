@@ -43,36 +43,37 @@ function search(valN::Val{N}, darp::DARP, bks::Float64, mrt::Int64, N_SIZE::Int,
             va = decrease_penality_coefficients(va)
         end
 
-        # if iterNum % KAPPA == 0
-        #     beforeVal = bestOptValue
-        #     # perform intra route optimization
-        #     Threads.@threads for vid in darp.vehicles
-        #         intraOptimizedRoute = performIntraRouteOptimimzation(valN, vid, bestRoutes[vid], bestOptRoutes, darp, va)
-        #         bestRoutes[vid] = intraOptimizedRoute
-        #     end
-        #     # recalc the best values
-        #     bestRVals = Dict(k => route_values!(valN, darp, bestRoutes[k], nothing) for k in darp.vehicles)
-        #     # this is tricky, we still want to use the penlity and other scaling factors
-        #     optRouteDict = Dict{Int64,OptRoute}(k => calc_opt_for_route(valN, darp, bestRoutes[k], bestRVals[k]) for k in darp.vehicles)
-        #     # carry forward the penality
-        #     bestOptRoutes = OptRoutes(optRouteDict, va, (bestMove.i, bestMove.k2), true)
-        #     bestOptValue = bestOptRoutes.Val
+        if iterNum % INTRA_ROUTE_KAPPA == 0
+            beforeVal = bestOptValue
+            # perform intra route optimization
+            Threads.@threads for vid in darp.vehicles
+                intraOptimizedRoute = performIntraRouteOptimimzation(valN, vid, bestRoutes[vid], bestOptRoutes, darp, va)
+                bestRoutes[vid] = intraOptimizedRoute
+            end
 
-        #     # assign best to cur
-        #     curRoutes = bestRoutes
-        #     curOptRoutes = bestOptRoutes
-        #     curRVals = bestRVals
-        #     curOptValue = curOptRoutes.Val # no Penality here because no move
+            # recalc the best values
+            bestRVals = Dict(k => route_values!(valN, darp, bestRoutes[k], nothing) for k in darp.vehicles)
+            # this is tricky, we still want to use the penlity and other scaling factors
+            optRouteDict = Dict{Int64,OptRoute}(k => calc_opt_for_route(valN, darp, bestRoutes[k], bestRVals[k]) for k in darp.vehicles)
+            # carry forward the penality
+            bestOptRoutes = OptRoutes(optRouteDict, va, (bestMove.i, bestMove.k2), true)
+            bestOptValue = bestOptRoutes.Val
 
-        #     iterNum += 1
-        #     println("Intra Route => Before = $(beforeVal) | After = $(bestOptRoutes.Val)")
-        #     if iterNum > mrt
-        #         println("Stopping Criteria - Max Runtime reached")
-        #         break
-        #     else
-        #         continue
-        #     end
-        # end
+            # assign best to cur
+            curRoutes = bestRoutes
+            curOptRoutes = bestOptRoutes
+            curRVals = bestRVals
+            curOptValue = curOptRoutes.Val # no Penality here because no move
+
+            iterNum += 1
+            println("Intra Route => Before = $(beforeVal) | After = $(bestOptRoutes.Val)")
+            if useMRTToStop && iterNum > mrt
+                println("Stopping Criteria - Max Runtime reached")
+                break
+            else
+                continue
+            end
+        end
 
         @timeit to "localsearch#$(iterNum)" begin
             @timeit to "randomMove" begin
