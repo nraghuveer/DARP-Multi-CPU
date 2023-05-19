@@ -14,7 +14,7 @@ def generate_pr_block(prNum, bks, runs, threads):
         lines.append(f"""filename="test-runs/bks/$1-{prNum}.{i}.csv"\n""")
         lines.append(f"""if [ ! -e "$filename"  ]\n""")
         lines.append("then\n")
-        lines.append(f"    ./runv2.sh {outputfileName} {filename} $2 {bks} 0 {threads} >> logs/bks/$1.txt\n")
+        lines.append(f"    ./runv2.sh {outputfileName} {filename} $2 {bks} 0 {threads}\n")
         lines.append("fi\n")
         lines.append(f"echo '{prNum}.{i}'\n")
         lines.append("\n")

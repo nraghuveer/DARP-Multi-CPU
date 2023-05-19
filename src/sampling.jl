@@ -10,8 +10,11 @@ function generate_random_vectorRoutes(darp::DARP, to::TimerOutput)
     routes = Dict(k => [darp.start_depot] for k in darp.vehicles)
 
     @timeit to "sampling" begin
+
+        requests = collect(1:nR)
+        sort!(requests, by=r -> return darp.requestsDict[r].criticalTW[1])
         # dont replace requests once picked
-        randomized_requests = StatsBase.sample(1:nR, darp.requestWeights, nR, replace=false, ordered=false)
+        randomized_requests = StatsBase.sample(requests, darp.requestWeights, nR, replace=false, ordered=true)
         # vehicles needs to picked with replace=true
         randomized_ks = StatsBase.sample(darp.vehicles, darp.vehicleWeights, nR, replace=true, ordered=false)
     end
@@ -30,17 +33,9 @@ function generate_random_vectorRoutes(darp::DARP, to::TimerOutput)
         end
     end
 
-    # TODO: IDEA => can use static arrays here, just insert into the next avaiable index
-    # for idx in 1:nR
-    #     k = randomized_ks[idx]
-    #     req = randomized_requests[idx]
-    #     append!(routes[k], [req, -req])
-    # end
     for k in darp.vehicles
         append!(routes[k], darp.end_depot)
     end
-
-
 
     return routes
 end

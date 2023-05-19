@@ -31,13 +31,16 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, mrt::Int6
     println("Starndard Cost = $(darp.standardCost)")
     total_iterations = trunc(Int64, 0.9 * nR)
 
+    INIT_SCALING_FACTOR = 15
     valN = Val(darp.MAX_ROUTE_SIZE)
-    bestScore = Inf
-    bestRoutes = Dict(k => [] for k in darp.vehicles)
+    temp = Dict(k => Vector{Int64}([]) for k in darp.vehicles)
+    allBestRoutes = Dict(i => copy(temp) for i in 1:(N_SIZE*INIT_SCALING_FACTOR))
+    allBestOptRoutesValues = Dict(i => Inf for i in 1:(N_SIZE*INIT_SCALING_FACTOR))
+
     va = VoilationVariables(darp.nR, darp.nV)
 
     @timeit to "init" begin
-        Threads.@threads for i in 1:N_SIZE
+        Threads.@threads for i in 1:(N_SIZE*INIT_SCALING_FACTOR)
             toOuter = TimerOutput()
             @timeit toOuter "init$(i)" begin
                 to2 = TimerOutput()
@@ -53,9 +56,12 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, mrt::Int6
                 @timeit to2 "calcOptFull" begin
                     optRoutes = calc_opt_full(valN, darp, rvals, curRoutes, va)
                 end
-                if optRoutes.Val <= bestScore
-                    bestScore = optRoutes.Val
-                    bestRoutes = curRoutes
+
+                allBestRoutes[i] = curRoutes
+                if optRoutes.feasible
+                    allBestOptRoutesValues[i] = optRoutes.Val
+                else
+                    allBestOptRoutesValues[i] = Inf
                 end
 
                 if enableTimerLogs
@@ -68,6 +74,9 @@ function run(darp::DARP, N_SIZE::Int64, stats::DARPStat, bks::Float64, mrt::Int6
             end
         end
     end
+    _, minTid = findmin(allBestOptRoutesValues)
+    println("Best Value for InitRoutes = $(allBestOptRoutesValues[minTid])")
+    bestRoutes = allBestRoutes[minTid]
 
     # convert vector routes to MVectors
     initRoutes::Routes{darp.MAX_ROUTE_SIZE} = Dict(k => copyVectorRoute!(valN, darp, bestRoutes[k], emptyRoute(darp)) for k in darp.vehicles)

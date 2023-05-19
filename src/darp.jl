@@ -6,21 +6,65 @@ using Test
 using TimerOutputs
 using StatsBase
 
-# (i, k)
-const TabuMemory = Dict{Tuple{Int64,Int64},Int64}
-
-
 struct MoveParams
     i::Int64
     k1::Int64
     k2::Int64
     p1::Int64
     p2::Int64
-    function MoveParams(i, k1, k2, p1, p2)
-        return new(i, k1, k2, p1, p2)
+    isFromTabu::Bool
+    function MoveParams(i, k1, k2, p1, p2, isFromTabu::Bool)
+        return new(i, k1, k2, p1, p2, isFromTabu)
     end
 end
-Base.zero(::Type{MoveParams}) = MoveParams(0, 0, 0, 0, 0)
+Base.zero(::Type{MoveParams}) = MoveParams(0, 0, 0, 0, 0, false)
+
+
+
+
+# (i, k)
+const TabuMemory = Dict{Tuple{Int64,Int64},Int64}
+
+mutable struct VoilationVariables
+    LAMBDA::Float64
+    ALPHA::Float64 #q(s)
+    BETA::Float64 # d(s)
+    GAMMA::Float64 #w(s)
+    TAU::Float64 # t(s)
+
+    THETA::Float64
+    ZETA::Float64
+    LongerTermTabuMemory::Dict{Tuple{Int64,Int64},Int64}
+    ShortTermTabuMemory::TabuMemory
+    sqrt_nm::Float64
+    checkTabuMem::Function
+    resetMemories::Function
+
+    function VoilationVariables(nR::Int64, nV::Int64)
+        # sqrt of n*m
+        sqrt_nm = sqrt(nR * nV)
+
+
+        checkTabuMem::Function = function (i::Int64, move::MoveParams, va::VoilationVariables)
+            m = (move.i, move.k2)
+            if !haskey(va.ShortTermTabuMemory, m) || va.ShortTermTabuMemory[m] <= i
+                va.ShortTermTabuMemory[m] = ceil(Int64, va.THETA)
+                return true, va, -1
+            end
+            return false, va, get(va.ShortTermTabuMemory, m, 0)
+        end
+
+        resetMemories::Function = function (va::VoilationVariables)
+            va.LongerTermTabuMemory = Dict{Tuple{Int64,Int64},Int64}([])
+            va.ShortTermTabuMemory = TabuMemory()
+            return va
+        end
+        Tt = 7.5 * log10(nR)
+        return new(0.015, 1.0, 1.0, 1.0, 1.0, Tt, 0.51, Dict{Tuple{Int64,Int64},Int64}([]), TabuMemory(), sqrt_nm, checkTabuMem, resetMemories)
+    end
+end
+
+
 
 const Route{N} = MVector{N,Int64}
 const GenericRoute{N} = Union{Vector{Int64},Route{N}}
@@ -39,31 +83,14 @@ struct RVals{N}
     RVals{N}(rmap, A, w, B, D, y) where {N} = new(rmap, A, w, B, D, y)
 end
 
-mutable struct VoilationVariables
-    LAMBDA::Float64
-    ALPHA::Float64 #q(s)
-    BETA::Float64 # d(s)
-    GAMMA::Float64 #w(s)
-    TAU::Float64 # t(s)
 
-    THETA::Float64
-    ZETA::Float64
-    LongerTermTabuMemory::Dict{Tuple{Int64,Int64},Int64}
-    ShortTermTabuMemory::TabuMemory
-    sqrt_nm::Float64
-
-    function VoilationVariables(nR::Int64, nV::Int64)
-        # sqrt of n*m
-        sqrt_nm = sqrt(nR * nV)
-        return new(0.015, 1.0, 1.0, 1.0, 1.0, 7.5 * log10(nR), 0.51, Dict{Tuple{Int64,Int64},Int64}([]), TabuMemory(), sqrt_nm)
-    end
-end
 
 struct DARP
     nR::Int64
     nV::Int64
     T_route::Float64 # max route duration
     requests::AbstractArray{Request}
+    requestsDict::Dict{Int64,Request}
     start_depot::Int64
     end_depot::Int64
     Q::Int64 # vehicle capacity
@@ -81,7 +108,7 @@ struct DARP
     function DARP(datafile::String, stats::DARPStat)
         filepath = string("benchmark-data/chairedistributique/data/darp/tabu/", datafile)
         println("using datafile = $(filepath)")
-        requests, depotPoint, nR, nV, Q, T_route = parseFile(filepath)
+        requests, requestsDict, depotPoint, depotTW, nR, nV, Q, T_route = parseFile(filepath)
         start_depot = 0
         end_depot = nR + 1
 
@@ -98,8 +125,8 @@ struct DARP
         q[end_depot] = 0
 
         tw::Dict{Int64,Tuple{Float64,Float64}} = Dict([])
-        tw[start_depot] = (0, 0)
-        tw[end_depot] = (0, 0)
+        tw[start_depot] = depotTW
+        tw[end_depot] = depotTW
 
         standardCost = 0.0
 
@@ -113,23 +140,26 @@ struct DARP
 
             # change in load after each node
             q[req.id] = req.pickup_load
-            q[-req.id] = -req.dropoff_load
+            q[-req.id] = req.dropoff_load
 
-            # tighten time windows?
-            ei_pickup_old, li_pickup_old = req.pickup_tw
-            ei_drop_old, li_drop_old = req.dropoff_tw
+            # # tighten time windows?
+            # ei_pickup_old, li_pickup_old = req.pickup_tw
+            # ei_drop_old, li_drop_old = req.dropoff_tw
 
-            L = travel_time(req.src, req.dst)
-            ei_pickup_new = max(ei_pickup_old,
-                ei_drop_old - d[-req.id] - L)
-            li_pickup_new = min(li_pickup_old, li_drop_old - d[req.id])
+            # L = travel_time(req.src, req.dst)
+            # ei_pickup_new = max(ei_pickup_old,
+            #     ei_drop_old - d[-req.id] - L)
+            # li_pickup_new = min(li_pickup_old, li_drop_old - d[req.id])
 
-            ei_dropoff_new = max(ei_drop_old, ei_pickup_old + d[req.id])
-            li_dropoff_new = min(li_drop_old, li_pickup_old + d[req.id] + L)
+            # ei_dropoff_new = max(ei_drop_old, ei_pickup_old + d[req.id])
+            # li_dropoff_new = min(li_drop_old, li_pickup_old + d[req.id] + L)
 
-            li_pickup_new = 0
-            tw[req.id] = (ei_pickup_new, li_pickup_new)
-            tw[-req.id] = (ei_dropoff_new, li_dropoff_new)
+            # li_pickup_new = 0
+            # tw[req.id] = (ei_pickup_new, li_pickup_new)
+            # tw[-req.id] = (ei_dropoff_new, li_dropoff_new)
+
+            tw[req.id] = req.pickup_tw
+            tw[-req.id] = req.dropoff_tw
 
             standardCost += travel_time(req.src, req.dst)
         end
@@ -138,7 +168,7 @@ struct DARP
         requestWeights = Weights(fill(1, nR))
         MAX_ROUTE_SIZE = nR * 4
 
-        return new(nR, nV, T_route, requests, start_depot, end_depot,
+        return new(nR, nV, T_route, requests, requestsDict, start_depot, end_depot,
             Q, coords, d, q, tw, standardCost, collect(nR+2:nR+2+nV-1), # inclusive
             vehicleWeights, requestWeights,
             MAX_ROUTE_SIZE, stats)
@@ -224,70 +254,6 @@ function remove_from_route(::Val{N}, darp::DARP, baseRoute::Route{N}, i::Int64) 
     return newRoute
 end
 
-function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64,
-    darp::DARP, baseRoutes::Routes{N}, destMoves::MVector{N_SIZE,MoveParams}, va::VoilationVariables) where {N,N_SIZE}
-    Int64, VoilationVariables
-
-    TabuTenure = trunc(Int64, va.THETA)
-    routes::Dict{Int64,Vector{Int64}} = Dict(k => [] for k in darp.vehicles)
-    for k in darp.vehicles
-        for v in baseRoutes[k]
-            if v == darp.end_depot
-                break
-            end
-            push!(routes[k], v)
-        end
-    end
-
-    curMoves::Set{MoveParams} = Set([])
-    nR = darp.nR
-    nV = darp.nV
-
-    vehicles = darp.vehicles
-    vehicleWeights = darp.vehicleWeights
-
-    tabuMissCount = 0
-    seedRng = MersenneTwister(iterationNum)
-    idx = 1
-    while idx <= N_SIZE
-
-        if tabuMissCount % (nR * 100) == 0
-            va = randomize_theta(va, nR)
-            TabuTenure = trunc(Int64, va.THETA)
-        end
-        k1, k2 = StatsBase.sample(seedRng, vehicles, vehicleWeights, 2, replace=false)
-
-        # pick a request from k1
-        len_k1 = length(routes[k1])
-        iRes = StatsBase.sample(seedRng, routes[k1], Weights(fill(1, len_k1)), 1)
-        i = abs(iRes[1])
-        if i == darp.start_depot || i == darp.end_depot
-            continue
-        end
-
-        len_k2::Int64 = length(routes[k2])
-        if len_k2 <= 3
-            p1, p2 = 1, 2
-        else
-            p1, p2 = StatsBase.sample(seedRng, 2:len_k2-1, Weights(fill(1, len_k2 - 2)), 2, replace=false, ordered=true)
-        end
-
-        param = MoveParams(i, k1, k2, p1, p2)
-        tabuMove = (i, k2)
-        moveLastUsedIn = get(va.ShortTermTabuMemory, param, -TabuTenure)
-
-        if !(param in curMoves) && (moveLastUsedIn + TabuTenure <= iterationNum)
-            va.ShortTermTabuMemory[tabuMove] = iterationNum
-            destMoves[idx] = param
-            push!(curMoves, param)
-            idx += 1
-        else
-            tabuMissCount += 1
-        end
-    end
-    return tabuMissCount, va
-end
-
 function copyVectorRoute!(::Val{N}, darp, srcRoute::Vector{Int64}, destRoute::Route{N}) where {N}
     for idx in eachindex(srcRoute)
         destRoute[idx] = srcRoute[idx]
@@ -310,18 +276,30 @@ function printRoutes(routes::Routes{N}, darp::DARP) where {N}
     end
 end
 
-
-
 function randomize_coefficients(vc::VoilationVariables, nR::Int64)
-    vc.THETA = rand(Uniform(0.0, 7.5 * log10(nR)))
+    # vc.THETA = rand(Uniform(0.0, 7.5 * log10(nR)))
     vc.LAMBDA = rand(Uniform(0.0, 0.015))
     vc.ZETA = rand(Uniform(0, 0.5))
     return vc
 end
 
-function randomize_theta(vc::VoilationVariables, nR::Int64)
-    vc.THETA = rand(Uniform(0.0, 7.5 * log10(nR)))
-    return vc
+function reset_theta(va::VoilationVariables, nR::Int64)
+    va.THETA = 7.5 * log10(nR)
+    return va
+end
+
+function increase_theta(va::VoilationVariables, nR::Int64)
+    T = 7.5 * log10(nR)
+    MAX_VALUE = T + (0.7 * T)
+    va.THETA = max(MAX_VALUE, va.THETA + (0.2 * va.THETA))
+    return va
+end
+
+function decrease_theta(va::VoilationVariables, nR::Int64)
+    T = 7.5 * log10(nR)
+    MAX_VALUE = T - (0.7 * T)
+    va.THETA = max(MAX_VALUE, va.THETA - (0.2 * va.THETA))
+    return va
 end
 
 function decrease_penality_coefficients(va::VoilationVariables)

@@ -30,6 +30,7 @@ struct Request
     dropoff_servicetime::Float64
     pickup_load::Int64
     dropoff_load::Int64
+    criticalTW::TW
 end
 
 function request_from_dataline(line::AbstractString)
