@@ -46,6 +46,7 @@ mutable struct VoilationVariables
 
 
         checkTabuMem::Function = function (i::Int64, move::MoveParams, va::VoilationVariables)
+            # route request i is added to vehicle route k2
             m = (move.i, move.k2)
             if !haskey(va.ShortTermTabuMemory, m) || va.ShortTermTabuMemory[m] <= i
                 va.ShortTermTabuMemory[m] = ceil(Int64, va.THETA)
@@ -297,8 +298,8 @@ end
 
 function decrease_theta(va::VoilationVariables, nR::Int64)
     T = 7.5 * log10(nR)
-    MAX_VALUE = T - (0.7 * T)
-    va.THETA = max(MAX_VALUE, va.THETA - (0.2 * va.THETA))
+    MIN_VALUE = T - (0.7 * T)
+    va.THETA = min(MIN_VALUE, va.THETA - (0.2 * va.THETA))
     return va
 end
 

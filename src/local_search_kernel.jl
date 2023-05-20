@@ -12,6 +12,7 @@ const Int = Int64
 KAPPA = 15 # iterations after which intra-route optimzation is performed
 INTRA_ROUTE_KAPPA = 10
 NIT = 3 # from granual-tabu-search paper
+RESET_ITERATIONS = 50
 
 function search(valN::Val{N}, darp::DARP, bks::Float64, mrt::Int64, N_SIZE::Int, initRoutes::Routes, va::VoilationVariables, stats::DARPStat, to::TimerOutput) where {N}
     useBKSToStop = bks != 0
@@ -45,8 +46,8 @@ function search(valN::Val{N}, darp::DARP, bks::Float64, mrt::Int64, N_SIZE::Int,
     lastImprovedIterNum = 0
 
     while true
-        println(iterNum - lastImprovedIterNum % 100)
-        if (iterNum - lastImprovedIterNum % 100) == 0
+        println("###################")
+        if ((iterNum - lastImprovedIterNum) % RESET_ITERATIONS) == 0
             println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
             println("Resetting Memories and randomizing coefficients")
             println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
@@ -151,11 +152,11 @@ function search(valN::Val{N}, darp::DARP, bks::Float64, mrt::Int64, N_SIZE::Int,
 
         printRoutesDetailed(curRoutes, darp, curOptRoutes)
 
-        if iterNum > 3 && iterNum % NIT == 0
+        if iterNum > NIT && iterNum % NIT == 0
             # time to check the history and modify the tabu tenure if required
             improved = false
-            base = optValuesLog[iterNum-3]
-            for x in iterNum-2:iterNum
+            base = optValuesLog[iterNum-NIT]
+            for x in iterNum-NIT-1:iterNum
                 if optValuesLog[x] > base
                     improved = true
                 end

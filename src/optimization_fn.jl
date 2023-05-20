@@ -254,20 +254,21 @@ function calc_opt_for_route(::Val{N}, darp::DARP, route::GenericRoute{N}, rvals:
 
     for cur in route[2:end]
         curIdx = rmap[cur]
+        if cur == darp.end_depot
+            break
+        end
         # max cap in route
         q = max(rvals.y[curIdx] - darp.Q, 0)
         # cost of travel
         c += travel_time(darp, prev, cur)
         ei, li = darp.tw[cur]
         w += max(0.0, rvals.B[curIdx] - li)
-        if cur == darp.end_depot
-            break
-        end
         if cur > 0
-            # pickup, calc ride time
-            # Li = B_i+n - Di
             dropofIdx = rvals.rmap[-cur]
-            t += max(0.0, rvals.B[dropofIdx] - rvals.D[curIdx])
+            maxRideTime = darp.requestsDict[cur].max_ride_time
+            # ride time for this request
+            rideTime = rvals.B[dropofIdx] - rvals.D[curIdx]
+            t += max(0.0, maxRideTime - rideTime)
         end
 
         prev = cur
@@ -472,7 +473,7 @@ function generate_random_moves(::Val{N}, ::Val{N_SIZE}, iterationNum::Int64, dar
         isTabued, va, _ = va.checkTabuMem(iterationNum, param, va)
         destMoves[idx] = param
         idx += 1
-        if !isTabued #
+        if !isTabued
             param = MoveParams(i, k1, k2, p1, p2, true)
         end
     end

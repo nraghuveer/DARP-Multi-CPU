@@ -14,7 +14,8 @@ nV_dict = {7: 4, 8: 6, 16: 13, 3: 7, 5: 11, 12: 5, 15: 11, 4: 9, 13: 7, 10: 10, 
 def getValue(runID, datasetID, thread, samplesize, nsize):
     csv_file_paths = []
     for i in range(1, samplesize+1):
-        csv_file_paths.append(f"{BASEPATH}/{runID}-{datasetID}.{i}.csv")
+        path = f"{BASEPATH}/{runID}-{datasetID}.{i}.csv"
+        csv_file_paths.append(path)
 
     # Load the CSV files into a list of pandas DataFrames
     dfs = []
@@ -31,26 +32,24 @@ def getValue(runID, datasetID, thread, samplesize, nsize):
     return value
 
 
-def main():
-    runID = input("Enter runID: ")
-    filename = input("Output filename: ")
-    dataset_start = int(input("Dataset start: "))
-    dataset_end = int(input("Dataset end: "))
-    samplesize = int(input("Sample size: "))
-    threads = input("Threads: ")
-    threads = threads.split(" ")
-    threads = list(map(int, threads))
-    nsize_percentage = float(input("N_SIZE percentage: "))
+def main(runID, plotfilename, dataset_start, dataset_end, samplesize, threads, nsize_percentage):
 
-    plot_file_path = f"{PLOTSPATH}/{filename}.png"
+    plot_file_path = f"{PLOTSPATH}/{plotfilename}.png"
 
     # Sample data
     datasets = [i for i in range(dataset_start, dataset_end+1)]
     bar_width = 0.35
 
-    # Generate random values for the bars
-    # values_group1 = np.random.randint(5, 15, len(categories))
-    # values_group2 = np.random.randint(5, 15, len(categories))
+    # for each dataset, what is base value i.e thread=1
+    base_values = {}
+    for dataset in datasets:
+        nR = nR_dict[dataset]
+        nV = nV_dict[dataset]
+        nsize = int(math.floor(nR * nV * nsize_percentage))
+        val = getValue(runID, dataset, 1, samplesize, nsize)
+        base_values[dataset] = val
+
+    dheights = {d: -1 for d in datasets}
     values_group = []
     for thread in threads:
         values = []
@@ -59,8 +58,9 @@ def main():
             nV = nV_dict[dataset]
             nsize = int(math.floor(nR * nV * nsize_percentage))
             val = getValue(runID, dataset, thread, samplesize, nsize)
-            print(f"thread={thread}, dataset={dataset}, thread={thread}, val={val}, nsize={nsize}")
-            values.append(val)
+            base_val = base_values[dataset]
+            values.append(base_val / val)
+            dheights[dataset] = max(dheights[dataset], values[-1])
         values_group.append(values)
 
     # Calculate the x-axis positions for each group
@@ -82,12 +82,32 @@ def main():
 
     # Set labels and title
     ax.set_xlabel('Dataset')
-    ax.set_ylabel('Time in seconds')
+    ax.set_ylabel('Speedup')
+
+    for i in range(len(datasets)):
+        d = i + dataset_start
+        nR = nR_dict[d]
+        nV = nV_dict[d]
+        s = f"{nR * nV}"
+        plt.text(i, dheights[d], s)
 
     ax.legend()
-    ax.set_title(f'N_SIZE = {nsize_percentage * 100}% of nR * nV')
+
+    ax.set_title(f'Speedup compared to 1 thread, N_SIZE = {nsize_percentage * 100}% of nR * nV')
     # Show the plot
     plt.savefig(plot_file_path)
 
 if __name__ == "__main__":
-    main()
+    runID = input("Enter runID: ")
+    threads = input("Threads: ")
+    threads = threads.split(" ")
+    threads = list(map(int, threads))
+    print(f"using threads = {threads}")
+
+    for nsize_percentage in [10, 20, 25, 35]:
+        for config in [(1, 10, "part1"), (11, 20, "part2")]:
+            dataset_start = config[0]
+            dataset_end = config[1]
+            samplesize = 5
+            plotfilename = f"{runID}speedup-{nsize_percentage}-{config[2]}"
+            main(runID, plotfilename, dataset_start, dataset_end, samplesize, threads, nsize_percentage/100)
